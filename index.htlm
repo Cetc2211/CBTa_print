@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Control Insumos - CBTA 130</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Librería para generar PDFs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+    <script>
+        // Configuración de precios de recuperación
+        const PRECIO_BN = 1.00;
+        const PRECIO_COLOR = 5.00;
+        let multCalidad = 1.0;
+        let nombreCalidad = "Normal";
+
+        // Al cargar la página, recuperar datos guardados en el iPad
+        window.onload = () => {
+            actualizarTabla();
+            calcular();
+        };
+
+        function setCalidad(valor, nombre, btnId) {
+            multCalidad = valor;
+            nombreCalidad = nombre;
+            document.querySelectorAll('.calidad-btn').forEach(btn => {
+                btn.className = "calidad-btn bg-slate-200 p-3 rounded-xl text-sm font-bold transition";
+            });
+            document.getElementById(btnId).className = "calidad-btn bg-green-600 text-white p-3 rounded-xl text-sm font-bold shadow-lg";
+            calcular();
+        }
+
+        function calcular() {
+            const pags = parseInt(document.getElementById('paginas').value) || 0;
+            const tipo = document.getElementById('tipo').value;
+            const base = tipo === 'bn' ? PRECIO_BN : PRECIO_COLOR;
+            const total = pags * base * multCalidad;
+            document.getElementById('total').innerText = `$${total.toFixed(2)}`;
+        }
+
+        function registrarCobro() {
+            const pags = document.getElementById('paginas').value;
+            const total = document.getElementById('total').innerText;
+            
+            const nuevoRegistro = {
+                fecha: new Date().toLocaleString(),
+                paginas: pags,
+                tipo: document.getElementById('tipo').value === 'bn' ? 'B/N' : 'Color',
+                calidad: nombreCalidad,
+                monto: total
+            };
+
+            // Guardar en el almacenamiento local del iPad (LocalStorage)
+            let historial = JSON.parse(localStorage.getItem('registros_cbta')) || [];
+            historial.push(nuevoRegistro);
+            localStorage.setItem('registros_cbta', JSON.stringify(historial));
+
+            actualizarTabla();
+            alert("✅ Registro guardado en la memoria del iPad");
+        }
+
+        function actualizarTabla() {
+            const historial = JSON.parse(localStorage.getItem('registros_cbta')) || [];
+            const lista = document.getElementById('lista-registros');
+            lista.innerHTML = historial.reverse().slice(0, 5).map(reg => `
+                <div class="flex justify-between border-b py-2 text-sm">
+                    <span class="text-slate-500">${reg.fecha.split(',')[0]}</span>
+                    <span class="font-bold text-slate-700">${reg.paginas} pág. (${reg.calidad})</span>
+                    <span class="text-green-700 font-bold">${reg.monto}</span>
+                </div>
+            `).join('');
+        }
+
+        async function descargarPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const historial = JSON.parse(localStorage.getItem('registros_cbta')) || [];
+
+            doc.setFontSize(18);
+            doc.text("Reporte de Recuperación de Insumos - CBTA 130", 14, 20);
+            
+            const tableData = historial.map(r => [r.fecha, r.paginas, r.tipo, r.calidad, r.monto]);
+            
+            doc.autoTable({
+                head: [['Fecha', 'Págs', 'Tipo', 'Calidad', 'Total']],
+                body: tableData,
+                startY: 30
+            });
+
+            doc.save(`Reporte_Impresiones_${new Date().toLocaleDateString()}.pdf`);
+        }
+
+        function borrarTodo() {
+            if(confirm("¿Seguro que quieres borrar todo el historial?")) {
+                localStorage.removeItem('registros_cbta');
+                actualizarTabla();
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-100 min-h-screen p-4 md:p-10 font-sans">
+
+    <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- PANEL DE COBRO -->
+        <div class="bg-white rounded-3xl shadow-xl p-6 border border-slate-200">
+            <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                🖨️ Nuevo Cobro
+            </h2>
+            
+            <div class="space-y-5">
+                <div>
+                    <label class="text-xs font-black uppercase text-slate-400 tracking-widest">Páginas</label>
+                    <input type="number" id="paginas" value="1" oninput="calcular()" class="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-2xl font-bold outline-none focus:border-green-500">
+                </div>
+
+                <div>
+                    <label class="text-xs font-black uppercase text-slate-400 tracking-widest">Tipo</label>
+                    <select id="tipo" onchange="calcular()" class="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 font-bold outline-none focus:border-green-500">
+                        <option value="bn">Blanco y Negro ($1.00)</option>
+                        <option value="color">Color ($5.00)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-xs font-black uppercase text-slate-400 tracking-widest">Calidad</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="b1" onclick="setCalidad(0.8, 'Borrador', 'b1')" class="calidad-btn bg-slate-200 p-3 rounded-xl text-sm font-bold transition">Borrador</button>
+                        <button id="b2" onclick="setCalidad(1.0, 'Normal', 'b2')" class="calidad-btn bg-green-600 text-white p-3 rounded-xl text-sm font-bold shadow-lg">Normal</button>
+                        <button id="b3" onclick="setCalidad(1.5, 'Óptima', 'b3')" class="calidad-btn bg-slate-200 p-3 rounded-xl text-sm font-bold transition">Óptima</button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-2xl p-6 text-center shadow-inner">
+                    <span class="text-slate-400 text-xs font-bold uppercase">Total a Recuperar</span>
+                    <div class="text-5xl font-black text-green-400" id="total">$1.00</div>
+                </div>
+
+                <button onclick="registrarCobro()" class="w-full bg-green-600 text-white font-black py-5 rounded-2xl shadow-lg active:scale-95 transition text-xl">
+                    REGISTRAR AHORA
+                </button>
+            </div>
+        </div>
+
+        <!-- PANEL DE HISTORIAL -->
+        <div class="bg-white rounded-3xl shadow-xl p-6 border border-slate-200 flex flex-col">
+            <h2 class="text-xl font-bold text-slate-800 mb-4 flex justify-between items-center">
+                📊 Últimos Registros
+                <button onclick="borrarTodo()" class="text-xs text-red-500 font-bold hover:underline">Limpiar</button>
+            </h2>
+            
+            <div id="lista-registros" class="flex-grow space-y-1 mb-6">
+                <!-- Se llena con JavaScript -->
+            </div>
+
+            <div class="space-y-3 mt-auto">
+                <button onclick="descargarPDF()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-700 transition">
+                    📥 Descargar Reporte PDF
+                </button>
+                <p class="text-[10px] text-slate-400 text-center uppercase font-bold italic">
+                    Los datos se guardan solo en este iPad
+                </p>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>

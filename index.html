@@ -3,168 +3,218 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Control Insumos - CBTA 130</title>
+    <title>Gestor de Impresiones - CBTA 130</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Librería para generar PDFs -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 
-    <script>
-        // Configuración de precios de recuperación
-        const PRECIO_BN = 1.00;
-        const PRECIO_COLOR = 5.00;
-        let multCalidad = 1.0;
-        let nombreCalidad = "Normal";
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Al cargar la página, recuperar datos guardados en el iPad
-        window.onload = () => {
-            actualizarTabla();
-            calcular();
+        // Configuración de Cecilio Topete Cruz
+        const firebaseConfig = {
+            apiKey: "AIzaSyBbfj61fpxREe0YLXpSX8taSoV06GnLHtw",
+            authDomain: "cbta-impresiones.firebaseapp.com",
+            projectId: "cbta-impresiones",
+            storageBucket: "cbta-impresiones.firebasestorage.app",
+            messagingSenderId: "674671663079",
+            appId: "1:674671663079:web:709e356d760c2c307f0f42"
         };
 
-        function setCalidad(valor, nombre, btnId) {
-            multCalidad = valor;
-            nombreCalidad = nombre;
-            document.querySelectorAll('.calidad-btn').forEach(btn => {
-                btn.className = "calidad-btn bg-slate-200 p-3 rounded-xl text-sm font-bold transition";
-            });
-            document.getElementById(btnId).className = "calidad-btn bg-green-600 text-white p-3 rounded-xl text-sm font-bold shadow-lg";
-            calcular();
-        }
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        function calcular() {
-            const pags = parseInt(document.getElementById('paginas').value) || 0;
-            const tipo = document.getElementById('tipo').value;
-            const base = tipo === 'bn' ? PRECIO_BN : PRECIO_COLOR;
-            const total = pags * base * multCalidad;
-            document.getElementById('total').innerText = `$${total.toFixed(2)}`;
-        }
+        let coberturaDetectada = 0;
+        let nombreUsuario = localStorage.getItem('nombre_usuario') || "";
 
-        function registrarCobro() {
-            const pags = document.getElementById('paginas').value;
-            const total = document.getElementById('total').innerText;
-            
-            const nuevoRegistro = {
-                fecha: new Date().toLocaleString(),
-                paginas: pags,
-                tipo: document.getElementById('tipo').value === 'bn' ? 'B/N' : 'Color',
-                calidad: nombreCalidad,
-                monto: total
-            };
-
-            // Guardar en el almacenamiento local del iPad (LocalStorage)
-            let historial = JSON.parse(localStorage.getItem('registros_cbta')) || [];
-            historial.push(nuevoRegistro);
-            localStorage.setItem('registros_cbta', JSON.stringify(historial));
-
-            actualizarTabla();
-            alert("✅ Registro guardado en la memoria del iPad");
-        }
-
-        function actualizarTabla() {
-            const historial = JSON.parse(localStorage.getItem('registros_cbta')) || [];
-            const lista = document.getElementById('lista-registros');
-            lista.innerHTML = historial.reverse().slice(0, 5).map(reg => `
-                <div class="flex justify-between border-b py-2 text-sm">
-                    <span class="text-slate-500">${reg.fecha.split(',')[0]}</span>
-                    <span class="font-bold text-slate-700">${reg.paginas} pág. (${reg.calidad})</span>
-                    <span class="text-green-700 font-bold">${reg.monto}</span>
-                </div>
-            `).join('');
-        }
-
-        async function descargarPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            const historial = JSON.parse(localStorage.getItem('registros_cbta')) || [];
-
-            doc.setFontSize(18);
-            doc.text("Reporte de Recuperación de Insumos - CBTA 130", 14, 20);
-            
-            const tableData = historial.map(r => [r.fecha, r.paginas, r.tipo, r.calidad, r.monto]);
-            
-            doc.autoTable({
-                head: [['Fecha', 'Págs', 'Tipo', 'Calidad', 'Total']],
-                body: tableData,
-                startY: 30
-            });
-
-            doc.save(`Reporte_Impresiones_${new Date().toLocaleDateString()}.pdf`);
-        }
-
-        function borrarTodo() {
-            if(confirm("¿Seguro que quieres borrar todo el historial?")) {
-                localStorage.removeItem('registros_cbta');
-                actualizarTabla();
+        window.onload = () => {
+            if (!nombreUsuario) {
+                document.getElementById('modal-registro').classList.remove('hidden');
+            } else {
+                document.getElementById('saludo').innerText = `Hola, ${nombreUsuario}`;
             }
+            escucharRegistros();
+        };
+
+        window.guardarPerfil = () => {
+            const nombre = document.getElementById('input-nombre').value;
+            if (nombre) {
+                localStorage.setItem('nombre_usuario', nombre);
+                nombreUsuario = nombre;
+                document.getElementById('modal-registro').classList.add('hidden');
+                document.getElementById('saludo').innerText = `Hola, ${nombreUsuario}`;
+            }
+        };
+
+        window.analizarArchivo = async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            document.getElementById('info-cobertura').innerText = "Analizando saturación de color...";
+            
+            reader.onload = async function() {
+                const typedarray = new Uint8Array(this.result);
+                const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                document.getElementById('pags-count').value = pdf.numPages;
+
+                const page = await pdf.getPage(1);
+                const viewport = page.getViewport({scale: 0.3});
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                await page.render({canvasContext: context, viewport: viewport}).promise;
+                
+                const imgData = context.getImageData(0, 0, canvas.width, canvas.height).data;
+                let pixelesColor = 0;
+                for (let i = 0; i < imgData.length; i += 4) {
+                    const r = imgData[i], g = imgData[i+1], b = imgData[i+2];
+                    if (Math.abs(r - g) > 15 || Math.abs(r - b) > 15) pixelesColor++;
+                }
+                
+                coberturaDetectada = (pixelesColor / (imgData.length / 4)) * 100;
+                window.actualizarPrecios();
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        window.actualizarPrecios = () => {
+            const pags = parseInt(document.getElementById('pags-count').value) || 0;
+            const imp = document.getElementById('impresora').value;
+            let precioUnitario = 0;
+
+            if (imp === 'laser_bn') {
+                precioUnitario = 1.00;
+                document.getElementById('info-cobertura').innerText = "Láser B/N: Tarifa fija";
+            } else {
+                const esSaturado = coberturaDetectada > 15;
+                if (imp === 'smart_tank') {
+                    precioUnitario = esSaturado ? 3.00 : 1.50;
+                } else if (imp === 'laser_color') {
+                    precioUnitario = esSaturado ? 7.00 : 2.50;
+                }
+                document.getElementById('info-cobertura').innerText = `Cobertura: ${coberturaDetectada.toFixed(1)}% (${esSaturado ? 'Saturado' : 'Texto/Simple'})`;
+            }
+
+            const total = pags * precioUnitario;
+            document.getElementById('display-total').innerText = `$${total.toFixed(2)}`;
+        };
+
+        window.registrar = async () => {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerText = "Enviando...";
+            
+            const totalStr = document.getElementById('display-total').innerText.replace('$', '');
+            try {
+                await addDoc(collection(db, "impresiones"), {
+                    usuario: nombreUsuario,
+                    impresora: document.getElementById('impresora').value,
+                    paginas: parseInt(document.getElementById('pags-count').value),
+                    total: parseFloat(totalStr),
+                    fecha: serverTimestamp()
+                });
+                alert("✅ Registro enviado con éxito");
+            } catch (e) {
+                alert("Error al conectar con Firebase. Revisa las reglas de seguridad.");
+            }
+            btn.disabled = false;
+            btn.innerText = "ENVIAR REGISTRO";
+        };
+
+        function escucharRegistros() {
+            const q = query(collection(db, "impresiones"), orderBy("fecha", "desc"), limit(10));
+            onSnapshot(q, (snapshot) => {
+                const lista = document.getElementById('historial');
+                lista.innerHTML = "";
+                snapshot.forEach((doc) => {
+                    const d = doc.data();
+                    const fecha = d.fecha ? new Date(d.fecha.seconds * 1000).toLocaleTimeString() : "...";
+                    lista.innerHTML += `
+                        <div class="p-3 border-b border-slate-100 flex justify-between items-center bg-white mb-2 rounded-lg shadow-sm">
+                            <div class="flex flex-col">
+                                <span class="font-bold text-slate-800">${d.usuario}</span>
+                                <span class="text-[10px] text-slate-400 uppercase">${d.impresora} • ${fecha}</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="block font-black text-green-600">$${d.total.toFixed(2)}</span>
+                                <span class="text-[10px] text-slate-400">${d.paginas} pág.</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            });
         }
     </script>
 </head>
-<body class="bg-slate-100 min-h-screen p-4 md:p-10 font-sans">
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
 
-    <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        <!-- PANEL DE COBRO -->
-        <div class="bg-white rounded-3xl shadow-xl p-6 border border-slate-200">
-            <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
-                🖨️ Nuevo Cobro
-            </h2>
-            
-            <div class="space-y-5">
+    <!-- Modal de Identificación -->
+    <div id="modal-registro" class="fixed inset-0 bg-slate-900/90 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center shadow-2xl">
+            <div class="text-4xl mb-4">🏫</div>
+            <h2 class="text-2xl font-black mb-2">Bienvenido</h2>
+            <p class="text-sm text-slate-500 mb-6">Identifícate para registrar tus impresiones en el CBTA 130</p>
+            <input id="input-nombre" type="text" placeholder="Tu nombre o Profr." class="w-full border-2 border-slate-100 p-4 rounded-2xl mb-4 text-center font-bold outline-none focus:border-green-500 transition-all">
+            <button onclick="guardarPerfil()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold shadow-lg">Entrar al Sistema</button>
+        </div>
+    </div>
+
+    <div class="max-w-5xl mx-auto p-4 lg:p-10">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 id="saludo" class="text-2xl font-black text-slate-900">Hola</h1>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Panel de Control de Impresiones</p>
+            </div>
+            <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+                <span class="text-green-600 font-bold">● En Línea</span>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Formulario -->
+            <div class="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 space-y-6">
                 <div>
-                    <label class="text-xs font-black uppercase text-slate-400 tracking-widest">Páginas</label>
-                    <input type="number" id="paginas" value="1" oninput="calcular()" class="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-2xl font-bold outline-none focus:border-green-500">
+                    <label class="text-xs font-black uppercase text-slate-400 mb-2 block">1. Cargar Documento (Análisis de Color)</label>
+                    <input type="file" accept=".pdf" onchange="analizarArchivo(event)" class="w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-6 file:rounded-2xl file:border-0 file:text-sm file:font-bold file:bg-slate-900 file:text-white hover:file:bg-slate-700 transition">
                 </div>
 
-                <div>
-                    <label class="text-xs font-black uppercase text-slate-400 tracking-widest">Tipo</label>
-                    <select id="tipo" onchange="calcular()" class="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 font-bold outline-none focus:border-green-500">
-                        <option value="bn">Blanco y Negro ($1.00)</option>
-                        <option value="color">Color ($5.00)</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="text-xs font-black uppercase text-slate-400 tracking-widest">Calidad</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button id="b1" onclick="setCalidad(0.8, 'Borrador', 'b1')" class="calidad-btn bg-slate-200 p-3 rounded-xl text-sm font-bold transition">Borrador</button>
-                        <button id="b2" onclick="setCalidad(1.0, 'Normal', 'b2')" class="calidad-btn bg-green-600 text-white p-3 rounded-xl text-sm font-bold shadow-lg">Normal</button>
-                        <button id="b3" onclick="setCalidad(1.5, 'Óptima', 'b3')" class="calidad-btn bg-slate-200 p-3 rounded-xl text-sm font-bold transition">Óptima</button>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-black uppercase text-slate-400 mb-2 block">Páginas</label>
+                        <input id="pags-count" type="number" value="1" oninput="actualizarPrecios()" class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-xl font-bold outline-none focus:border-green-500">
+                    </div>
+                    <div>
+                        <label class="text-xs font-black uppercase text-slate-400 mb-2 block">Impresora</label>
+                        <select id="impresora" onchange="actualizarPrecios()" class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 font-bold outline-none focus:border-green-500 appearance-none">
+                            <option value="laser_bn">Laser B/N (Económica)</option>
+                            <option value="smart_tank">Smart Tank (Tinta)</option>
+                            <option value="laser_color">Laser Pro (Color)</option>
+                        </select>
                     </div>
                 </div>
 
-                <div class="bg-slate-900 rounded-2xl p-6 text-center shadow-inner">
-                    <span class="text-slate-400 text-xs font-bold uppercase">Total a Recuperar</span>
-                    <div class="text-5xl font-black text-green-400" id="total">$1.00</div>
+                <div class="bg-slate-900 rounded-[2rem] p-8 text-center shadow-2xl">
+                    <p id="info-cobertura" class="text-green-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Esperando archivo...</p>
+                    <div id="display-total" class="text-6xl font-black text-white tracking-tighter">$0.00</div>
                 </div>
 
-                <button onclick="registrarCobro()" class="w-full bg-green-600 text-white font-black py-5 rounded-2xl shadow-lg active:scale-95 transition text-xl">
-                    REGISTRAR AHORA
+                <button onclick="registrar()" class="w-full bg-green-500 hover:bg-green-600 text-white font-black py-6 rounded-[1.5rem] shadow-lg shadow-green-100 active:scale-95 transition-all text-xl">
+                    ENVIAR REGISTRO
                 </button>
             </div>
-        </div>
 
-        <!-- PANEL DE HISTORIAL -->
-        <div class="bg-white rounded-3xl shadow-xl p-6 border border-slate-200 flex flex-col">
-            <h2 class="text-xl font-bold text-slate-800 mb-4 flex justify-between items-center">
-                📊 Últimos Registros
-                <button onclick="borrarTodo()" class="text-xs text-red-500 font-bold hover:underline">Limpiar</button>
-            </h2>
-            
-            <div id="lista-registros" class="flex-grow space-y-1 mb-6">
-                <!-- Se llena con JavaScript -->
-            </div>
-
-            <div class="space-y-3 mt-auto">
-                <button onclick="descargarPDF()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-700 transition">
-                    📥 Descargar Reporte PDF
-                </button>
-                <p class="text-[10px] text-slate-400 text-center uppercase font-bold italic">
-                    Los datos se guardan solo en este iPad
-                </p>
+            <!-- Monitor del iPad -->
+            <div class="bg-slate-100/50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200">
+                <h2 class="font-black text-slate-400 uppercase text-xs mb-6 tracking-widest text-center">Monitor de Actividad (iPad Pro)</h2>
+                <div id="historial" class="space-y-3 h-[500px] overflow-y-auto pr-2">
+                    <!-- Registros de Firebase -->
+                </div>
             </div>
         </div>
-
     </div>
 
 </body>

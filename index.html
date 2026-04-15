@@ -13,7 +13,6 @@
         import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-        // CONFIGURACIÓN OFICIAL PARA PROYECTO: ACADEMIC TRACKER QEOXI
         const firebaseConfig = {
             apiKey: "AIzaSyCDy-W8_3sB3WS8gVKZuzV_P6PdG1tBOUc",
             authDomain: "academic-tracker-qeoxi.firebaseapp.com",
@@ -49,8 +48,7 @@
         window.analizarArchivo = async (e) => {
             archivoSeleccionado = e.target.files[0];
             if(!archivoSeleccionado) return;
-            document.getElementById('info-cobertura').innerText = "Analizando color...";
-
+            document.getElementById('info-cobertura').innerText = "Analizando...";
             if (archivoSeleccionado.type === 'application/pdf') {
                 const reader = new FileReader();
                 reader.onload = async function() {
@@ -80,18 +78,17 @@
         window.actualizarPrecios = () => {
             const pags = parseInt(document.getElementById('pags-count').value) || 1;
             const imp = document.getElementById('impresora').value;
-            let pU = (imp === 'laser_bn') ? 1.0 : (coberturaDetectada > 15 ? 3.5 : 1.5);
+            // PRECIO ACTUALIZADO: B/N a $0.50. Color depende de cobertura.
+            let pU = (imp === 'laser_bn') ? 0.50 : (coberturaDetectada > 15 ? 3.50 : 1.50);
             document.getElementById('display-total').innerText = `$${(pags * pU).toFixed(2)}`;
-            document.getElementById('info-cobertura').innerText = `Analizado (${coberturaDetectada.toFixed(1)}% color)`;
+            document.getElementById('info-cobertura').innerText = `Listo (${coberturaDetectada.toFixed(1)}% color)`;
         };
 
         window.registrar = async () => {
-            if(!archivoSeleccionado) return alert("Selecciona un archivo primero");
+            if(!archivoSeleccionado) return alert("Selecciona un archivo");
             const btn = document.getElementById('btn-registrar');
-            btn.disabled = true; btn.innerText = "Subiendo archivo...";
-
+            btn.disabled = true; btn.innerText = "Subiendo...";
             try {
-                // Subida a la carpeta 'impresiones' aprovechando el plan Blaze
                 const storageRef = ref(storage, `impresiones/${Date.now()}_${archivoSeleccionado.name}`);
                 const snapshot = await uploadBytes(storageRef, archivoSeleccionado);
                 const url = await getDownloadURL(snapshot.ref);
@@ -108,7 +105,7 @@
                 document.getElementById('modal-exito').classList.remove('hidden');
             } catch (e) { 
                 console.error(e);
-                alert("Error de subida. Verifica las Reglas de Storage en la consola."); 
+                alert("Error de subida. Verifica haber presionado PUBLICAR en las reglas de Storage."); 
             }
             btn.disabled = false; btn.innerText = "REGISTRAR Y SUBIR";
         };
@@ -126,6 +123,7 @@
                             <div class="flex items-center gap-3">
                                 <a href="${d.archivoURL}" target="_blank" class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg text-[10px] font-bold border border-indigo-100">ABRIR</a>
                                 <span class="font-black text-green-600 text-sm">$${d.total.toFixed(2)}</span>
+                                <button onclick="window.borrarRegistro('${doc.id}')" class="text-red-200 hover:text-red-500 ml-2">×</button>
                             </div>
                         </div>`;
                 });
@@ -133,6 +131,7 @@
             });
         }
 
+        window.borrarRegistro = async (id) => { if(confirm("¿Eliminar registro?")) await deleteDoc(doc(db, "registros_impresion", id)); };
         window.generarQR = () => { new QRCode(document.getElementById("qrcode"), { text: window.location.href, width: 200, height: 200 }); };
         window.mostrarQR = () => document.getElementById('modal-qr').classList.remove('hidden');
         window.cerrarQR = () => document.getElementById('modal-qr').classList.add('hidden');
@@ -156,7 +155,7 @@
 
     <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 hidden">
         <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center shadow-2xl">
-            <h2 class="text-2xl font-black mb-4 text-slate-900">Bienvenido 👋</h2>
+            <h2 class="text-2xl font-black mb-4">Bienvenido 👋</h2>
             <input id="input-nombre" type="text" placeholder="Tu nombre" class="w-full border-2 p-4 rounded-2xl mb-4 text-center font-bold outline-none focus:border-indigo-500">
             <button onclick="guardarPerfil()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold">Entrar</button>
         </div>
@@ -180,12 +179,12 @@
             <div class="lg:col-span-5 bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 space-y-6">
                 <label class="block">
                     <span class="text-xs font-black uppercase text-slate-400 mb-2 block tracking-widest text-center">Subir Archivo para Imprimir</span>
-                    <input type="file" accept=".pdf, image/*" onchange="analizarArchivo(event)" class="w-full text-sm file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-slate-900 file:text-white transition-opacity">
+                    <input type="file" accept=".pdf, image/*" onchange="analizarArchivo(event)" class="w-full text-sm file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-slate-900 file:text-white">
                 </label>
                 <div class="grid grid-cols-2 gap-4">
                     <input id="pags-count" type="number" readonly class="bg-slate-50 border-2 rounded-2xl p-4 font-bold text-center">
                     <select id="impresora" onchange="actualizarPrecios()" class="bg-slate-50 border-2 rounded-2xl p-4 font-bold">
-                        <option value="laser_bn">Laser B/N</option>
+                        <option value="laser_bn">Laser B/N ($0.50)</option>
                         <option value="smart_tank">Color (Tinta)</option>
                     </select>
                 </div>

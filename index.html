@@ -13,12 +13,12 @@
         import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-        // Configuración oficial de Academic Tracker Qeoxi
+        // CONFIGURACIÓN CORREGIDA SEGÚN TUS CAPTURAS (PROYECTO: ACADEMIC TRACKER QEOXI)
         const firebaseConfig = {
             apiKey: "AIzaSyCDy-W8_3sB3WS8gVKZuzV_P6PdG1tBOUc",
             authDomain: "academic-tracker-qeoxi.firebaseapp.com",
             projectId: "academic-tracker-qeoxi",
-            storageBucket: "academic-tracker-qeoxi.firebasestorage.app",
+            storageBucket: "academic-tracker-qeoxi.firebasestorage.app", // Este es el bucket que aparece en tu consola
             messagingSenderId: "674671663079",
             appId: "1:674671663079:web:96e8125d02652b024469e3"
         };
@@ -91,7 +91,7 @@
             btn.disabled = true; btn.innerText = "Subiendo archivo...";
 
             try {
-                // Carpeta 'impresiones' en tu Storage de Academic Tracker
+                // SE SUBE A LA CARPETA 'impresiones' EN TU STORAGE
                 const storageRef = ref(storage, `impresiones/${Date.now()}_${archivoSeleccionado.name}`);
                 const snapshot = await uploadBytes(storageRef, archivoSeleccionado);
                 const url = await getDownloadURL(snapshot.ref);
@@ -108,7 +108,7 @@
                 document.getElementById('modal-exito').classList.remove('hidden');
             } catch (e) { 
                 console.error(e);
-                alert("Error de subida. Verifica que las Reglas de Storage estén publicadas."); 
+                alert("Error de subida. Verifica que las Reglas de Storage estén publicadas en la consola de Firebase."); 
             }
             btn.disabled = false; btn.innerText = "REGISTRAR Y SUBIR";
         };
@@ -150,12 +150,12 @@
         <div class="bg-white p-8 rounded-[2.5rem] text-center" onclick="event.stopPropagation()">
             <h2 class="text-2xl font-black mb-4">Registro de Impresiones</h2>
             <div id="qrcode" class="flex justify-center mb-6"></div>
-            <button onclick="cerrarQR()" class="w-full bg-slate-100 py-4 rounded-2xl font-bold">Cerrar</button>
+            <button onclick="cerrarQR()" class="w-full bg-slate-100 py-4 rounded-2xl font-bold">Cerrar Pantalla</button>
         </div>
     </div>
 
     <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center">
+        <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center shadow-2xl">
             <h2 class="text-2xl font-black mb-4 text-slate-900">Bienvenido 👋</h2>
             <input id="input-nombre" type="text" placeholder="Tu nombre" class="w-full border-2 p-4 rounded-2xl mb-4 text-center font-bold outline-none focus:border-indigo-500">
             <button onclick="guardarPerfil()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold">Entrar</button>
@@ -173,7 +173,7 @@
     <div class="max-w-5xl mx-auto lg:mt-10">
         <header class="flex justify-between items-center mb-10">
             <h1 id="saludo" class="text-3xl font-black tracking-tighter text-slate-900">Cargando...</h1>
-            <button onclick="localStorage.clear(); location.reload();" class="text-xs text-slate-400 border px-3 py-1 rounded-lg hover:bg-white transition">Salir</button>
+            <button onclick="localStorage.clear(); location.reload();" class="text-xs text-slate-400 border px-3 py-1 rounded-lg">Salir</button>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -184,25 +184,25 @@
                 </label>
                 <div class="grid grid-cols-2 gap-4">
                     <input id="pags-count" type="number" readonly class="bg-slate-50 border-2 rounded-2xl p-4 font-bold text-center">
-                    <select id="impresora" onchange="actualizarPrecios()" class="bg-slate-50 border-2 rounded-2xl p-4 font-bold outline-none">
+                    <select id="impresora" onchange="actualizarPrecios()" class="bg-slate-50 border-2 rounded-2xl p-4 font-bold">
                         <option value="laser_bn">Laser B/N</option>
                         <option value="smart_tank">Color (Tinta)</option>
                     </select>
                 </div>
                 <div class="bg-slate-900 rounded-[2rem] p-8 text-center text-white shadow-2xl">
                     <p id="info-cobertura" class="text-green-400 text-[10px] font-black uppercase mb-2 tracking-widest">Esperando archivo...</p>
-                    <div id="display-total" class="text-6xl font-black">$0.00</div>
+                    <div id="display-total" class="text-6xl font-black tracking-tighter">$0.00</div>
                 </div>
                 <button id="btn-registrar" onclick="registrar()" class="w-full bg-indigo-600 text-white font-black py-6 rounded-3xl text-xl shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">REGISTRAR Y SUBIR</button>
             </div>
 
             <div id="panel-admin" class="lg:col-span-7 space-y-4 hidden">
                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 text-center">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ingresos del Día</p>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Ingresos del Día</p>
                     <p id="resumen-dinero" class="text-3xl font-black text-green-600">$0.00</p>
                 </div>
                 <div class="bg-slate-100/50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200">
-                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center uppercase">Monitor de Recibidos</h2>
+                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center">Cola de Recibidos</h2>
                     <div id="historial" class="space-y-2 h-[450px] overflow-y-auto pr-2"></div>
                 </div>
             </div>

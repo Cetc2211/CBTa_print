@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Sistema de Impresiones - CBTa 130</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -13,6 +14,7 @@
         import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
+        // CONFIGURACIÓN OFICIAL: ACADEMIC TRACKER QEOXI
         const firebaseConfig = {
             apiKey: "AIzaSyCDy-W8_3sB3WS8gVKZuzV_P6PdG1tBOUc",
             authDomain: "academic-tracker-qeoxi.firebaseapp.com",
@@ -22,6 +24,7 @@
             appId: "1:674671663079:web:96e8125d02652b024469e3"
         };
 
+        // Inicialización
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const storage = getStorage(app);
@@ -36,7 +39,7 @@
                 document.getElementById('modal-registro').classList.remove('hidden');
             } else {
                 document.getElementById('saludo').innerText = `Hola, ${nombreUsuario}`;
-                // Si eres tú, activamos el monitor
+                // Solo Cecilio ve el monitor administrativo
                 if (nombreUsuario.toLowerCase().includes("cecilio")) {
                     document.getElementById('panel-admin').classList.remove('hidden');
                     document.getElementById('btn-flotante-qr').classList.remove('hidden');
@@ -49,7 +52,8 @@
         window.analizarArchivo = async (e) => {
             archivoSeleccionado = e.target.files[0];
             if(!archivoSeleccionado) return;
-            document.getElementById('info-cobertura').innerText = "Analizando...";
+            document.getElementById('info-cobertura').innerText = "Procesando archivo...";
+
             if (archivoSeleccionado.type === 'application/pdf') {
                 const reader = new FileReader();
                 reader.onload = async function() {
@@ -71,7 +75,7 @@
                 reader.readAsArrayBuffer(archivoSeleccionado);
             } else {
                 document.getElementById('pags-count').value = 1;
-                coberturaDetectada = 20;
+                coberturaDetectada = 20; // Default para imágenes
                 actualizarPrecios();
             }
         };
@@ -79,52 +83,60 @@
         window.actualizarPrecios = () => {
             const pags = parseInt(document.getElementById('pags-count').value) || 1;
             const imp = document.getElementById('impresora').value;
-            // PRECIO: B/N a $0.50 como pediste
+            // PRECIO: B/N a $0.50. Color según cobertura detectada.
             let pU = (imp === 'laser_bn') ? 0.50 : (coberturaDetectada > 15 ? 3.50 : 1.50);
             document.getElementById('display-total').innerText = `$${(pags * pU).toFixed(2)}`;
-            document.getElementById('info-cobertura').innerText = `Listo (${coberturaDetectada.toFixed(1)}% color)`;
+            document.getElementById('info-cobertura').innerText = `Detectado: ${coberturaDetectada.toFixed(1)}% color`;
         };
 
         window.registrar = async () => {
-            if(!archivoSeleccionado) return alert("Selecciona un archivo");
+            if(!archivoSeleccionado) return alert("Selecciona un archivo primero");
             const btn = document.getElementById('btn-registrar');
             btn.disabled = true; btn.innerText = "Subiendo...";
+
             try {
-                // 1. SUBIDA A STORAGE (Ya funciona por tus capturas)
+                // 1. Subir a Storage
                 const storageRef = ref(storage, `impresiones/${Date.now()}_${archivoSeleccionado.name}`);
                 const snapshot = await uploadBytes(storageRef, archivoSeleccionado);
                 const url = await getDownloadURL(snapshot.ref);
 
-                // 2. REGISTRO EN FIRESTORE (Aquí es donde aparecerá en tu monitor)
+                // 2. Guardar en Firestore (Colección: cola_impresion)
                 await addDoc(collection(db, "cola_impresion"), {
                     usuario: nombreUsuario,
                     archivo: archivoSeleccionado.name,
                     archivoURL: url,
+                    impresora: document.getElementById('impresora').value,
+                    paginas: parseInt(document.getElementById('pags-count').value),
                     total: parseFloat(document.getElementById('display-total').innerText.replace('$','')),
                     fecha: serverTimestamp()
                 });
                 document.getElementById('modal-exito').classList.remove('hidden');
-            } catch (e) { 
+            } catch (e) {
                 console.error(e);
-                alert("Error de conexión. Verifica las Reglas de Firestore."); 
+                alert("Error de envío. Verifica tu conexión.");
             }
             btn.disabled = false; btn.innerText = "REGISTRAR Y SUBIR";
         };
 
         function escucharRegistros() {
-            const q = query(collection(db, "cola_impresion"), orderBy("fecha", "desc"), limit(20));
+            const q = query(collection(db, "cola_impresion"), orderBy("fecha", "desc"), limit(25));
             onSnapshot(q, (snapshot) => {
                 const lista = document.getElementById('historial');
                 let total$ = 0; lista.innerHTML = "";
                 snapshot.forEach((docSnap) => {
                     const d = docSnap.data(); total$ += d.total || 0;
+                    const hora = d.fecha ? new Date(d.fecha.seconds * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : "";
                     lista.innerHTML += `
                         <div class="p-4 border-b flex justify-between items-center bg-white mb-2 rounded-2xl shadow-sm border border-slate-100">
-                            <div class="text-xs"><b>${d.usuario}</b><br><span class="text-slate-400 truncate block max-w-[120px]">${d.archivo}</span></div>
+                            <div class="text-xs">
+                                <b class="text-slate-900 uppercase text-sm">${d.usuario}</b><br>
+                                <span class="text-slate-400 truncate block max-w-[130px]">${d.archivo}</span>
+                                <span class="text-indigo-400 font-bold text-[9px] uppercase">${d.impresora} • ${hora}</span>
+                            </div>
                             <div class="flex items-center gap-2">
-                                <a href="${d.archivoURL}" target="_blank" class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[10px] font-bold">ABRIR</a>
-                                <span class="font-black text-green-600">$${(d.total || 0).toFixed(2)}</span>
-                                <button onclick="borrarRegistro('${docSnap.id}')" class="text-red-200 ml-1 font-bold">×</button>
+                                <a href="${d.archivoURL}" target="_blank" class="bg-indigo-600 text-white px-4 py-3 rounded-xl text-[10px] font-black shadow-md">ABRIR</a>
+                                <span class="font-black text-green-600 text-sm">$${(d.total || 0).toFixed(2)}</span>
+                                <button onclick="borrarRegistro('${docSnap.id}')" class="text-red-200 ml-1 font-bold text-lg">×</button>
                             </div>
                         </div>`;
                 });
@@ -132,7 +144,7 @@
             });
         }
 
-        window.borrarRegistro = async (id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "cola_impresion", id)); };
+        window.borrarRegistro = async (id) => { if(confirm("¿Eliminar registro?")) await deleteDoc(doc(db, "cola_impresion", id)); };
         window.generarQR = () => { new QRCode(document.getElementById("qrcode"), { text: window.location.href, width: 200, height: 200 }); };
         window.mostrarQR = () => document.getElementById('modal-qr').classList.remove('hidden');
         window.cerrarQR = () => document.getElementById('modal-qr').classList.add('hidden');
@@ -143,61 +155,66 @@
     </script>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 p-4 font-sans">
-    <button id="btn-flotante-qr" onclick="mostrarQR()" class="fixed bottom-6 right-6 bg-slate-900 text-white p-5 rounded-full shadow-2xl z-40 hidden">📲 QR</button>
-    
+
+    <button id="btn-flotante-qr" onclick="mostrarQR()" class="fixed bottom-6 right-6 bg-slate-900 text-white p-5 rounded-full shadow-2xl z-40 hidden active:scale-95 transition-all">📲 QR</button>
+
     <div id="modal-qr" class="fixed inset-0 bg-slate-900/95 flex items-center justify-center p-4 z-50 hidden" onclick="cerrarQR()">
         <div class="bg-white p-8 rounded-[2.5rem] text-center" onclick="event.stopPropagation()">
-            <h2 class="text-2xl font-black mb-4">Registro CBTa 130</h2>
-            <div id="qrcode" class="flex justify-center mb-6"></div>
+            <h2 class="text-2xl font-black mb-4">Registro de Impresiones</h2>
+            <div id="qrcode" class="flex justify-center mb-6 border-8 border-slate-50 p-2 rounded-xl"></div>
             <button onclick="cerrarQR()" class="w-full bg-slate-100 py-4 rounded-2xl font-bold">Cerrar</button>
         </div>
     </div>
 
     <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center">
-            <h2 class="text-2xl font-black mb-4">Bienvenido 👋</h2>
-            <input id="input-nombre" type="text" placeholder="Escribe tu nombre" class="w-full border-2 p-4 rounded-2xl mb-4 text-center font-bold">
-            <button onclick="guardarPerfil()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold">Entrar</button>
+        <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center shadow-2xl">
+            <h2 class="text-2xl font-black mb-4 text-slate-900 font-sans">Bienvenido 👋</h2>
+            <p class="text-xs text-slate-400 mb-6 uppercase tracking-widest font-bold">Identifícate para continuar</p>
+            <input id="input-nombre" type="text" placeholder="Tu nombre completo" class="w-full border-2 p-4 rounded-2xl mb-4 text-center font-bold outline-none focus:border-indigo-500 transition-all uppercase">
+            <button onclick="guardarPerfil()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold shadow-xl">Entrar al Sistema</button>
         </div>
     </div>
 
-    <div id="modal-exito" class="fixed inset-0 bg-green-600 flex items-center justify-center p-4 z-50 hidden text-center text-white">
+    <div id="modal-exito" class="fixed inset-0 bg-green-600 flex items-center justify-center p-4 z-50 hidden text-center">
         <div class="max-w-sm w-full">
-            <h2 class="text-4xl font-black mb-4 text-white">✅ ¡Enviado!</h2>
-            <p class="mb-8 opacity-90 text-lg text-white">Acércate al monitor del Profr. Cecilio.</p>
-            <button onclick="location.reload()" class="w-full border-2 border-white py-4 rounded-2xl font-bold">Nueva Impresión</button>
+            <h2 class="text-4xl font-black mb-4 text-white uppercase tracking-tighter">✅ ¡LISTO!</h2>
+            <p class="mb-8 text-white opacity-90 text-lg">Tu archivo fue enviado. Avisa al Profr. Cecilio para que lo imprima.</p>
+            <button onclick="location.reload()" class="w-full border-2 border-white py-4 rounded-2xl font-bold text-white uppercase">Nueva Impresión</button>
         </div>
     </div>
 
     <div class="max-w-5xl mx-auto lg:mt-10">
         <header class="flex justify-between items-center mb-10">
-            <h1 id="saludo" class="text-3xl font-black tracking-tighter uppercase text-slate-900">Cargando...</h1>
-            <button onclick="localStorage.clear(); location.reload();" class="text-xs text-slate-400 border px-3 py-1 rounded-lg">Salir</button>
+            <h1 id="saludo" class="text-3xl font-black tracking-tighter text-slate-900 uppercase">Cargando...</h1>
+            <button onclick="localStorage.clear(); location.reload();" class="text-xs text-slate-400 border px-3 py-1 rounded-lg hover:bg-white transition-all">Salir</button>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div class="lg:col-span-5 bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 space-y-6">
                 <label class="block">
-                    <span class="text-xs font-black text-slate-400 mb-2 block tracking-widest text-center uppercase">Subir Archivo para Imprimir</span>
-                    <input type="file" accept=".pdf, image/*" onchange="analizarArchivo(event)" class="w-full text-sm file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-slate-900 file:text-white">
+                    <span class="text-xs font-black uppercase text-slate-400 mb-2 block tracking-widest text-center">Subir PDF o Imagen</span>
+                    <input type="file" accept=".pdf, image/*" onchange="analizarArchivo(event)" class="w-full text-sm file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-slate-900 file:text-white transition-all">
                 </label>
                 <div class="grid grid-cols-2 gap-4">
-                    <input id="pags-count" type="number" readonly class="bg-slate-50 border-2 rounded-2xl p-4 font-bold text-center">
-                    <select id="impresora" onchange="actualizarPrecios()" class="bg-slate-50 border-2 rounded-2xl p-4 font-bold outline-none">
-                        <option value="laser_bn">Laser B/N ($0.50)</option>
+                    <div class="text-center bg-slate-50 border-2 rounded-2xl p-2">
+                        <span class="text-[8px] font-bold text-slate-400 uppercase block">Páginas</span>
+                        <input id="pags-count" type="number" readonly value="0" class="w-full bg-transparent font-black text-center text-xl outline-none">
+                    </div>
+                    <select id="impresora" onchange="actualizarPrecios()" class="bg-slate-50 border-2 rounded-2xl p-4 font-black outline-none text-sm uppercase">
+                        <option value="laser_bn">Láser B/N ($0.50)</option>
                         <option value="smart_tank">Color (Tinta)</option>
                     </select>
                 </div>
-                <div class="bg-slate-900 rounded-[2rem] p-8 text-center text-white">
+                <div class="bg-slate-900 rounded-[2rem] p-8 text-center shadow-2xl border-4 border-slate-800">
                     <p id="info-cobertura" class="text-green-400 text-[10px] font-black uppercase mb-2 tracking-widest">Esperando archivo...</p>
                     <div id="display-total" class="text-6xl font-black tracking-tighter text-white">$0.00</div>
                 </div>
-                <button id="btn-registrar" onclick="registrar()" class="w-full bg-indigo-600 text-white font-black py-6 rounded-3xl text-xl shadow-lg">REGISTRAR Y SUBIR</button>
+                <button id="btn-registrar" onclick="registrar()" class="w-full bg-indigo-600 text-white font-black py-6 rounded-3xl text-xl shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">REGISTRAR Y SUBIR</button>
             </div>
 
             <div id="panel-admin" class="lg:col-span-7 space-y-4 hidden">
                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 text-center">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center uppercase">Ingresos del Día</p>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ingresos del Día</p>
                     <p id="resumen-dinero" class="text-3xl font-black text-green-600">$0.00</p>
                 </div>
                 <div class="bg-slate-100/50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200">

@@ -25,22 +25,21 @@
         const db = getFirestore(app);
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
+        // --- CREDENCIALES ACTUALIZADAS CBTA 130 ---
         const redesImpresoras = {
-            laser_bn: { red: "DIRECT-HP-LaserJet-M15", clave: "12345678" },
-            smart_tank: { red: "DIRECT-HP-Smart-Tank-515", clave: "87654321" },
-            laser_color: { red: "DIRECT-HP-Color-Laser-Pro", clave: "admin123" }
+            laser_bn: { red: "DIRECT-37-HP 1602 LaserJet Tank", clave: "0422-2840-0611" },
+            smart_tank: { red: "DIRECT.5B-HP Smart Tank 750", clave: "869672488634" },
+            laser_color: { red: "REVISAR CONFIGURACIÓN", clave: "00000000" }
         };
 
         let coberturaDetectada = 0;
         let nombreUsuario = localStorage.getItem('nombre_usuario') || "";
-        // DEFINIR SI ES ADMIN (Tú puedes cambiar "Cecilio" por tu nombre de login)
         const isAdmin = nombreUsuario.toLowerCase().includes("cecilio") || nombreUsuario.toLowerCase().includes("admin");
 
         window.onload = () => {
             if (!nombreUsuario) document.getElementById('modal-registro').classList.remove('hidden');
             else {
                 document.getElementById('saludo').innerText = `Hola, ${nombreUsuario}`;
-                // Solo mostrar panel de control si eres Admin
                 if (isAdmin) {
                     document.getElementById('panel-admin').classList.remove('hidden');
                     document.getElementById('btn-flotante-qr').classList.remove('hidden');
@@ -50,7 +49,6 @@
             generarQR();
         };
 
-        // --- FUNCIONES ADMIN ---
         window.borrarRegistro = async (id) => { if(confirm("¿Borrar?")) await deleteDoc(doc(db, "impresiones", id)); };
         
         window.iniciarNuevaJornada = async () => {
@@ -74,10 +72,10 @@
                     const hora = d.fecha ? new Date(d.fecha.seconds * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : "";
                     lista.innerHTML += `
                         <div class="p-3 border-b flex justify-between items-center bg-white mb-2 rounded-xl shadow-sm">
-                            <div class="text-xs"><b>${d.usuario}</b><br><span class="text-slate-400">${d.impresora} • ${hora}</span></div>
+                            <div class="text-xs"><b>${d.usuario}</b><br><span class="text-slate-400 uppercase">${d.impresora} • ${hora}</span></div>
                             <div class="flex items-center gap-2">
                                 <span class="font-black text-green-600">$${d.total.toFixed(2)}</span>
-                                <button onclick="borrarRegistro('${doc.id}')" class="text-red-300 px-2">×</button>
+                                <button onclick="borrarRegistro('${doc.id}')" class="text-red-300 px-2 font-bold text-lg">×</button>
                             </div>
                         </div>`;
                 });
@@ -86,9 +84,8 @@
             });
         }
 
-        // --- FUNCIONES GENERALES ---
         window.generarQR = () => { 
-            new QRCode(document.getElementById("qrcode"), { text: window.location.href, width: 200, height: 200 }); 
+            new QRCode(document.getElementById("qrcode"), { text: window.location.href, width: 220, height: 220 }); 
         };
         
         window.guardarPerfil = () => {
@@ -99,14 +96,14 @@
         window.analizarArchivo = async (e) => {
             const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
-            document.getElementById('info-cobertura').innerText = "Calculando costo...";
+            document.getElementById('info-cobertura').innerText = "Analizando color...";
             reader.onload = async function() {
                 const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
                 document.getElementById('pags-count').value = pdf.numPages;
                 const page = await pdf.getPage(1);
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
-                const viewport = page.getViewport({scale: 0.2});
+                const viewport = page.getViewport({scale: 0.25});
                 canvas.height = viewport.height; canvas.width = viewport.width;
                 await page.render({canvasContext: context, viewport: viewport}).promise;
                 const data = context.getImageData(0,0,canvas.width,canvas.height).data;
@@ -127,19 +124,24 @@
             if(imp==='smart_tank') pU = coberturaDetectada > 15 ? 3.0 : 1.5;
             if(imp==='laser_color') pU = coberturaDetectada > 15 ? 7.0 : 2.5;
             document.getElementById('display-total').innerText = `$${(pags * pU).toFixed(2)}`;
-            document.getElementById('info-cobertura').innerText = `Análisis: ${coberturaDetectada.toFixed(1)}% de color`;
+            document.getElementById('info-cobertura').innerText = `Color detectado: ${coberturaDetectada.toFixed(1)}%`;
         };
 
         window.registrar = async () => {
+            const btn = event.target;
+            btn.disabled = true; btn.innerText = "Registrando...";
             const total = parseFloat(document.getElementById('display-total').innerText.replace('$',''));
             const impId = document.getElementById('impresora').value;
-            await addDoc(collection(db, "impresiones"), {
-                usuario: nombreUsuario, impresora: impId, paginas: parseInt(document.getElementById('pags-count').value),
-                total: total, fecha: serverTimestamp()
-            });
-            document.getElementById('wifi-nombre').innerText = redesImpresoras[impId].red;
-            document.getElementById('wifi-clave').innerText = redesImpresoras[impId].clave;
-            document.getElementById('modal-exito').classList.remove('hidden');
+            try {
+                await addDoc(collection(db, "impresiones"), {
+                    usuario: nombreUsuario, impresora: impId, paginas: parseInt(document.getElementById('pags-count').value),
+                    total: total, fecha: serverTimestamp()
+                });
+                document.getElementById('wifi-nombre').innerText = redesImpresoras[impId].red;
+                document.getElementById('wifi-clave').innerText = redesImpresoras[impId].clave;
+                document.getElementById('modal-exito').classList.remove('hidden');
+            } catch (e) { alert("Error de red"); }
+            btn.disabled = false; btn.innerText = "ENVIAR REGISTRO";
         };
 
         window.mostrarQR = () => document.getElementById('modal-qr').classList.remove('hidden');
@@ -154,9 +156,9 @@
 
     <div id="modal-qr" class="fixed inset-0 bg-slate-900/95 flex items-center justify-center p-4 z-50 hidden" onclick="cerrarQR()">
         <div class="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center" onclick="event.stopPropagation()">
-            <h2 class="text-2xl font-black mb-4">Escanea para Cobro</h2>
-            <div id="qrcode" class="flex justify-center mb-6"></div>
-            <button onclick="cerrarQR()" class="w-full bg-slate-100 py-4 rounded-2xl font-bold">Cerrar</button>
+            <h2 class="text-2xl font-black mb-4">Registro de Cobro</h2>
+            <div id="qrcode" class="flex justify-center mb-6 border p-2 rounded-xl"></div>
+            <button onclick="cerrarQR()" class="w-full bg-slate-100 py-4 rounded-2xl font-bold">Cerrar Pantalla</button>
         </div>
     </div>
 
@@ -170,12 +172,12 @@
 
     <div id="modal-exito" class="fixed inset-0 bg-green-600 flex items-center justify-center p-4 z-50 hidden text-center text-white">
         <div class="max-w-sm w-full">
-            <h2 class="text-4xl font-black mb-6">✅ ¡Listo!</h2>
+            <h2 class="text-4xl font-black mb-6">✅ ¡Registrado!</h2>
             <div class="bg-white text-slate-900 p-8 rounded-[2.5rem] shadow-2xl mb-6">
                 <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Conéctate al Wi-Fi de la Impresora:</p>
-                <p id="wifi-nombre" class="text-xl font-black mb-4"></p>
+                <p id="wifi-nombre" class="text-lg font-black mb-4 text-slate-700"></p>
                 <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Contraseña:</p>
-                <p id="wifi-clave" class="text-3xl font-black text-green-600 tracking-tighter"></p>
+                <p id="wifi-clave" class="text-2xl font-black text-green-600 tracking-tighter select-all"></p>
             </div>
             <button onclick="location.reload()" class="w-full border-2 border-white py-4 rounded-2xl font-bold">Nueva Impresión</button>
         </div>
@@ -184,7 +186,7 @@
     <div class="max-w-6xl mx-auto p-4 lg:p-10">
         <header class="flex justify-between items-center mb-10">
             <h1 id="saludo" class="text-3xl font-black tracking-tighter">Cargando...</h1>
-            <button onclick="localStorage.clear(); location.reload();" class="text-[10px] font-bold text-slate-400 border px-3 py-1 rounded-lg">Cerrar Sesión</button>
+            <button onclick="localStorage.clear(); location.reload();" class="text-[10px] font-bold text-slate-400 border px-3 py-1 rounded-lg">Salir</button>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
@@ -192,21 +194,21 @@
                 <div class="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 space-y-6">
                     <label class="block">
                         <span class="text-xs font-black uppercase text-slate-400 mb-2 block tracking-widest">1. Sube tu archivo</span>
-                        <input type="file" accept=".pdf" onchange="analizarArchivo(event)" class="w-full text-xs file:mr-4 file:py-3 file:px-6 file:rounded-2xl file:border-0 file:bg-slate-900 file:text-white">
+                        <input type="file" accept=".pdf" onchange="analizarArchivo(event)" class="w-full text-xs file:mr-4 file:py-3 file:px-6 file:rounded-2xl file:border-0 file:bg-slate-900 file:text-white transition-all">
                     </label>
 
                     <div class="grid grid-cols-2 gap-4">
                         <input id="pags-count" type="number" value="1" oninput="actualizarPrecios()" class="bg-slate-50 border-2 rounded-2xl p-4 font-bold outline-none focus:border-green-500">
                         <select id="impresora" onchange="actualizarPrecios()" class="bg-slate-50 border-2 rounded-2xl p-4 font-bold outline-none focus:border-green-500">
-                            <option value="laser_bn">Laser B/N</option>
-                            <option value="smart_tank">Smart Tank</option>
-                            <option value="laser_color">Laser Pro</option>
+                            <option value="laser_bn">Laser B/N Tank</option>
+                            <option value="smart_tank">Smart Tank 750</option>
+                            <option value="laser_color">Laser Pro Color</option>
                         </select>
                     </div>
 
                     <div class="bg-slate-900 rounded-[2rem] p-8 text-center text-white shadow-2xl">
-                        <p id="info-cobertura" class="text-green-400 text-[10px] font-black uppercase mb-2">Esperando archivo...</p>
-                        <div id="display-total" class="text-6xl font-black">$0.00</div>
+                        <p id="info-cobertura" class="text-green-400 text-[10px] font-black uppercase mb-2">Listo para analizar...</p>
+                        <div id="display-total" class="text-6xl font-black tracking-tighter">$0.00</div>
                     </div>
 
                     <button onclick="registrar()" class="w-full bg-green-500 text-white font-black py-6 rounded-[1.5rem] text-xl shadow-lg hover:bg-green-600 transition-all">ENVIAR REGISTRO</button>
@@ -216,16 +218,16 @@
             <div id="panel-admin" class="lg:col-span-7 space-y-6 hidden">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 text-center">
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recaudación</p>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Corte de Caja</p>
                         <p id="resumen-dinero" class="text-3xl font-black text-green-600">$0.00</p>
                     </div>
-                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 text-center flex flex-col justify-center">
-                        <button onclick="iniciarNuevaJornada()" class="text-[10px] font-bold text-red-500 uppercase">Reiniciar Corte</button>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 text-center flex flex-col justify-center gap-2">
+                        <button onclick="iniciarNuevaJornada()" class="text-[10px] font-bold text-red-400 uppercase hover:text-red-600 transition">Reiniciar Todo</button>
                     </div>
                 </div>
 
                 <div class="bg-slate-100/50 p-6 rounded-[2.5rem] border-2 border-dashed border-slate-200">
-                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center">Monitor Docente (Total Hojas: <span id="resumen-hojas">0</span>)</h2>
+                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center">Monitor (Total Hojas: <span id="resumen-hojas">0</span>)</h2>
                     <div id="historial" class="space-y-2 h-[400px] overflow-y-auto pr-2"></div>
                 </div>
             </div>

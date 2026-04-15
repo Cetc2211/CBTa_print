@@ -22,7 +22,6 @@
             appId: "1:674671663079:web:96e8125d02652b024469e3"
         };
 
-        // Inicialización segura
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const storage = getStorage(app);
@@ -37,7 +36,7 @@
                 document.getElementById('modal-registro').classList.remove('hidden');
             } else {
                 document.getElementById('saludo').innerText = `Hola, ${nombreUsuario}`;
-                // Solo activamos panel si el nombre incluye "cecilio"
+                // Si eres tú, activamos el monitor
                 if (nombreUsuario.toLowerCase().includes("cecilio")) {
                     document.getElementById('panel-admin').classList.remove('hidden');
                     document.getElementById('btn-flotante-qr').classList.remove('hidden');
@@ -50,29 +49,26 @@
         window.analizarArchivo = async (e) => {
             archivoSeleccionado = e.target.files[0];
             if(!archivoSeleccionado) return;
-            document.getElementById('info-cobertura').innerText = "Procesando...";
-            
+            document.getElementById('info-cobertura').innerText = "Analizando...";
             if (archivoSeleccionado.type === 'application/pdf') {
-                try {
-                    const reader = new FileReader();
-                    reader.onload = async function() {
-                        const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
-                        document.getElementById('pags-count').value = pdf.numPages;
-                        const page = await pdf.getPage(1);
-                        const canvas = document.createElement('canvas');
-                        const viewport = page.getViewport({scale: 0.2});
-                        canvas.height = viewport.height; canvas.width = viewport.width;
-                        await page.render({canvasContext: canvas.getContext('2d'), viewport: viewport}).promise;
-                        const data = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
-                        let color = 0;
-                        for(let i=0; i<data.length; i+=4) {
-                            if(Math.abs(data[i]-data[i+1])>15 || Math.abs(data[i]-data[i+2])>15) color++;
-                        }
-                        coberturaDetectada = (color/(data.length/4))*100;
-                        actualizarPrecios();
-                    };
-                    reader.readAsArrayBuffer(archivoSeleccionado);
-                } catch (err) { console.error("Error PDF:", err); }
+                const reader = new FileReader();
+                reader.onload = async function() {
+                    const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
+                    document.getElementById('pags-count').value = pdf.numPages;
+                    const page = await pdf.getPage(1);
+                    const canvas = document.createElement('canvas');
+                    const viewport = page.getViewport({scale: 0.2});
+                    canvas.height = viewport.height; canvas.width = viewport.width;
+                    await page.render({canvasContext: canvas.getContext('2d'), viewport: viewport}).promise;
+                    const data = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+                    let color = 0;
+                    for(let i=0; i<data.length; i+=4) {
+                        if(Math.abs(data[i]-data[i+1])>15 || Math.abs(data[i]-data[i+2])>15) color++;
+                    }
+                    coberturaDetectada = (color/(data.length/4))*100;
+                    actualizarPrecios();
+                };
+                reader.readAsArrayBuffer(archivoSeleccionado);
             } else {
                 document.getElementById('pags-count').value = 1;
                 coberturaDetectada = 20;
@@ -83,52 +79,48 @@
         window.actualizarPrecios = () => {
             const pags = parseInt(document.getElementById('pags-count').value) || 1;
             const imp = document.getElementById('impresora').value;
+            // PRECIO: B/N a $0.50 como pediste
             let pU = (imp === 'laser_bn') ? 0.50 : (coberturaDetectada > 15 ? 3.50 : 1.50);
             document.getElementById('display-total').innerText = `$${(pags * pU).toFixed(2)}`;
             document.getElementById('info-cobertura').innerText = `Listo (${coberturaDetectada.toFixed(1)}% color)`;
         };
 
         window.registrar = async () => {
-            if(!archivoSeleccionado) return alert("Selecciona un archivo primero");
+            if(!archivoSeleccionado) return alert("Selecciona un archivo");
             const btn = document.getElementById('btn-registrar');
             btn.disabled = true; btn.innerText = "Subiendo...";
-
             try {
+                // 1. SUBIDA A STORAGE (Ya funciona por tus capturas)
                 const storageRef = ref(storage, `impresiones/${Date.now()}_${archivoSeleccionado.name}`);
                 const snapshot = await uploadBytes(storageRef, archivoSeleccionado);
                 const url = await getDownloadURL(snapshot.ref);
 
-                await addDoc(collection(db, "registros_impresion"), {
+                // 2. REGISTRO EN FIRESTORE (Aquí es donde aparecerá en tu monitor)
+                await addDoc(collection(db, "cola_impresion"), {
                     usuario: nombreUsuario,
                     archivo: archivoSeleccionado.name,
                     archivoURL: url,
-                    impresora: document.getElementById('impresora').value,
-                    paginas: parseInt(document.getElementById('pags-count').value),
                     total: parseFloat(document.getElementById('display-total').innerText.replace('$','')),
                     fecha: serverTimestamp()
                 });
                 document.getElementById('modal-exito').classList.remove('hidden');
             } catch (e) { 
                 console.error(e);
-                alert("Error de conexión. Verifica las reglas de Storage."); 
+                alert("Error de conexión. Verifica las Reglas de Firestore."); 
             }
             btn.disabled = false; btn.innerText = "REGISTRAR Y SUBIR";
         };
 
         function escucharRegistros() {
-            const q = query(collection(db, "registros_impresion"), orderBy("fecha", "desc"), limit(25));
+            const q = query(collection(db, "cola_impresion"), orderBy("fecha", "desc"), limit(20));
             onSnapshot(q, (snapshot) => {
                 const lista = document.getElementById('historial');
                 let total$ = 0; lista.innerHTML = "";
                 snapshot.forEach((docSnap) => {
                     const d = docSnap.data(); total$ += d.total || 0;
-                    const hora = d.fecha ? new Date(d.fecha.seconds * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : "...";
                     lista.innerHTML += `
                         <div class="p-4 border-b flex justify-between items-center bg-white mb-2 rounded-2xl shadow-sm border border-slate-100">
-                            <div class="text-xs">
-                                <b class="text-slate-900">${d.usuario}</b><br>
-                                <span class="text-slate-400 truncate block max-w-[120px]">${d.archivo}</span>
-                            </div>
+                            <div class="text-xs"><b>${d.usuario}</b><br><span class="text-slate-400 truncate block max-w-[120px]">${d.archivo}</span></div>
                             <div class="flex items-center gap-2">
                                 <a href="${d.archivoURL}" target="_blank" class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-[10px] font-bold">ABRIR</a>
                                 <span class="font-black text-green-600">$${(d.total || 0).toFixed(2)}</span>
@@ -140,7 +132,7 @@
             });
         }
 
-        window.borrarRegistro = async (id) => { if(confirm("¿Borrar?")) await deleteDoc(doc(db, "registros_impresion", id)); };
+        window.borrarRegistro = async (id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "cola_impresion", id)); };
         window.generarQR = () => { new QRCode(document.getElementById("qrcode"), { text: window.location.href, width: 200, height: 200 }); };
         window.mostrarQR = () => document.getElementById('modal-qr').classList.remove('hidden');
         window.cerrarQR = () => document.getElementById('modal-qr').classList.add('hidden');
@@ -151,9 +143,8 @@
     </script>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 p-4 font-sans">
-
     <button id="btn-flotante-qr" onclick="mostrarQR()" class="fixed bottom-6 right-6 bg-slate-900 text-white p-5 rounded-full shadow-2xl z-40 hidden">📲 QR</button>
-
+    
     <div id="modal-qr" class="fixed inset-0 bg-slate-900/95 flex items-center justify-center p-4 z-50 hidden" onclick="cerrarQR()">
         <div class="bg-white p-8 rounded-[2.5rem] text-center" onclick="event.stopPropagation()">
             <h2 class="text-2xl font-black mb-4">Registro CBTa 130</h2>
@@ -165,22 +156,22 @@
     <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 hidden">
         <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center">
             <h2 class="text-2xl font-black mb-4">Bienvenido 👋</h2>
-            <input id="input-nombre" type="text" placeholder="Escribe tu nombre" class="w-full border-2 p-4 rounded-2xl mb-4 text-center font-bold outline-none">
+            <input id="input-nombre" type="text" placeholder="Escribe tu nombre" class="w-full border-2 p-4 rounded-2xl mb-4 text-center font-bold">
             <button onclick="guardarPerfil()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold">Entrar</button>
         </div>
     </div>
 
     <div id="modal-exito" class="fixed inset-0 bg-green-600 flex items-center justify-center p-4 z-50 hidden text-center text-white">
         <div class="max-w-sm w-full">
-            <h2 class="text-4xl font-black mb-4">✅ ¡Enviado!</h2>
-            <p class="mb-8 opacity-90 text-lg text-white">Tu archivo está listo para imprimir en el iPad del Profr. Cecilio.</p>
+            <h2 class="text-4xl font-black mb-4 text-white">✅ ¡Enviado!</h2>
+            <p class="mb-8 opacity-90 text-lg text-white">Acércate al monitor del Profr. Cecilio.</p>
             <button onclick="location.reload()" class="w-full border-2 border-white py-4 rounded-2xl font-bold">Nueva Impresión</button>
         </div>
     </div>
 
     <div class="max-w-5xl mx-auto lg:mt-10">
         <header class="flex justify-between items-center mb-10">
-            <h1 id="saludo" class="text-3xl font-black tracking-tighter uppercase">Cargando...</h1>
+            <h1 id="saludo" class="text-3xl font-black tracking-tighter uppercase text-slate-900">Cargando...</h1>
             <button onclick="localStorage.clear(); location.reload();" class="text-xs text-slate-400 border px-3 py-1 rounded-lg">Salir</button>
         </header>
 
@@ -206,11 +197,11 @@
 
             <div id="panel-admin" class="lg:col-span-7 space-y-4 hidden">
                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 text-center">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Ingresos del Día</p>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center uppercase">Ingresos del Día</p>
                     <p id="resumen-dinero" class="text-3xl font-black text-green-600">$0.00</p>
                 </div>
                 <div class="bg-slate-100/50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200">
-                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center">Monitor de Impresiones</h2>
+                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center uppercase">Monitor de Recibidos</h2>
                     <div id="historial" class="space-y-2 h-[450px] overflow-y-auto pr-2"></div>
                 </div>
             </div>

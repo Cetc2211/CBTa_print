@@ -13,12 +13,12 @@
         import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-        // CONFIGURACIÓN CORREGIDA SEGÚN TUS CAPTURAS (PROYECTO: ACADEMIC TRACKER QEOXI)
+        // CONFIGURACIÓN OFICIAL PARA PROYECTO: ACADEMIC TRACKER QEOXI
         const firebaseConfig = {
             apiKey: "AIzaSyCDy-W8_3sB3WS8gVKZuzV_P6PdG1tBOUc",
             authDomain: "academic-tracker-qeoxi.firebaseapp.com",
             projectId: "academic-tracker-qeoxi",
-            storageBucket: "academic-tracker-qeoxi.firebasestorage.app", // Este es el bucket que aparece en tu consola
+            storageBucket: "academic-tracker-qeoxi.firebasestorage.app",
             messagingSenderId: "674671663079",
             appId: "1:674671663079:web:96e8125d02652b024469e3"
         };
@@ -91,7 +91,7 @@
             btn.disabled = true; btn.innerText = "Subiendo archivo...";
 
             try {
-                // SE SUBE A LA CARPETA 'impresiones' EN TU STORAGE
+                // Subida a la carpeta 'impresiones' aprovechando el plan Blaze
                 const storageRef = ref(storage, `impresiones/${Date.now()}_${archivoSeleccionado.name}`);
                 const snapshot = await uploadBytes(storageRef, archivoSeleccionado);
                 const url = await getDownloadURL(snapshot.ref);
@@ -108,7 +108,7 @@
                 document.getElementById('modal-exito').classList.remove('hidden');
             } catch (e) { 
                 console.error(e);
-                alert("Error de subida. Verifica que las Reglas de Storage estén publicadas en la consola de Firebase."); 
+                alert("Error de subida. Verifica las Reglas de Storage en la consola."); 
             }
             btn.disabled = false; btn.innerText = "REGISTRAR Y SUBIR";
         };
@@ -150,7 +150,7 @@
         <div class="bg-white p-8 rounded-[2.5rem] text-center" onclick="event.stopPropagation()">
             <h2 class="text-2xl font-black mb-4">Registro de Impresiones</h2>
             <div id="qrcode" class="flex justify-center mb-6"></div>
-            <button onclick="cerrarQR()" class="w-full bg-slate-100 py-4 rounded-2xl font-bold">Cerrar Pantalla</button>
+            <button onclick="cerrarQR()" class="w-full bg-slate-100 py-4 rounded-2xl font-bold">Cerrar</button>
         </div>
     </div>
 
@@ -202,7 +202,7 @@
                     <p id="resumen-dinero" class="text-3xl font-black text-green-600">$0.00</p>
                 </div>
                 <div class="bg-slate-100/50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200">
-                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center">Cola de Recibidos</h2>
+                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center">Monitor de Recibidos</h2>
                     <div id="historial" class="space-y-2 h-[450px] overflow-y-auto pr-2"></div>
                 </div>
             </div>

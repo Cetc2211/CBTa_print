@@ -13,14 +13,14 @@
         import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-        // PEGA AQUÍ TUS DATOS DE ACADEMIC TRACKER
+        // Configuración oficial de Academic Tracker Qeoxi
         const firebaseConfig = {
-            apiKey: "TU_API_KEY",
-            authDomain: "TU_AUTH_DOMAIN",
-            projectId: "TU_PROJECT_ID",
-            storageBucket: "TU_STORAGE_BUCKET",
-            messagingSenderId: "TU_SENDER_ID",
-            appId: "TU_APP_ID"
+            apiKey: "AIzaSyCDy-W8_3sB3WS8gVKZuzV_P6PdG1tBOUc",
+            authDomain: "academic-tracker-qeoxi.firebaseapp.com",
+            projectId: "academic-tracker-qeoxi",
+            storageBucket: "academic-tracker-qeoxi.firebasestorage.app",
+            messagingSenderId: "674671663079",
+            appId: "1:674671663079:web:96e8125d02652b024469e3"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -86,17 +86,16 @@
         };
 
         window.registrar = async () => {
-            if(!archivoSeleccionado) return alert("Sube un archivo primero");
+            if(!archivoSeleccionado) return alert("Selecciona un archivo primero");
             const btn = document.getElementById('btn-registrar');
             btn.disabled = true; btn.innerText = "Subiendo archivo...";
 
             try {
-                // 1. SUBIDA A STORAGE (Aprovechando tu plan de pago)
+                // Carpeta 'impresiones' en tu Storage de Academic Tracker
                 const storageRef = ref(storage, `impresiones/${Date.now()}_${archivoSeleccionado.name}`);
                 const snapshot = await uploadBytes(storageRef, archivoSeleccionado);
                 const url = await getDownloadURL(snapshot.ref);
 
-                // 2. REGISTRO EN FIRESTORE
                 await addDoc(collection(db, "registros_impresion"), {
                     usuario: nombreUsuario,
                     archivo: archivoSeleccionado.name,
@@ -109,9 +108,9 @@
                 document.getElementById('modal-exito').classList.remove('hidden');
             } catch (e) { 
                 console.error(e);
-                alert("Error de subida. Verifica las reglas de Storage en tu consola."); 
+                alert("Error de subida. Verifica que las Reglas de Storage estén publicadas."); 
             }
-            btn.disabled = false; btn.innerText = "ENVIAR REGISTRO";
+            btn.disabled = false; btn.innerText = "REGISTRAR Y SUBIR";
         };
 
         function escucharRegistros() {
@@ -149,7 +148,7 @@
 
     <div id="modal-qr" class="fixed inset-0 bg-slate-900/95 flex items-center justify-center p-4 z-50 hidden" onclick="cerrarQR()">
         <div class="bg-white p-8 rounded-[2.5rem] text-center" onclick="event.stopPropagation()">
-            <h2 class="text-2xl font-black mb-4">Registro Académico Impresiones</h2>
+            <h2 class="text-2xl font-black mb-4">Registro de Impresiones</h2>
             <div id="qrcode" class="flex justify-center mb-6"></div>
             <button onclick="cerrarQR()" class="w-full bg-slate-100 py-4 rounded-2xl font-bold">Cerrar</button>
         </div>
@@ -157,8 +156,8 @@
 
     <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 hidden">
         <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center">
-            <h2 class="text-2xl font-black mb-4 text-slate-900">Bienvenido</h2>
-            <input id="input-nombre" type="text" placeholder="Escribe tu nombre" class="w-full border-2 p-4 rounded-2xl mb-4 text-center font-bold outline-none focus:border-indigo-500">
+            <h2 class="text-2xl font-black mb-4 text-slate-900">Bienvenido 👋</h2>
+            <input id="input-nombre" type="text" placeholder="Tu nombre" class="w-full border-2 p-4 rounded-2xl mb-4 text-center font-bold outline-none focus:border-indigo-500">
             <button onclick="guardarPerfil()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold">Entrar</button>
         </div>
     </div>
@@ -173,21 +172,21 @@
 
     <div class="max-w-5xl mx-auto lg:mt-10">
         <header class="flex justify-between items-center mb-10">
-            <h1 id="saludo" class="text-3xl font-black tracking-tighter">Cargando...</h1>
-            <button onclick="localStorage.clear(); location.reload();" class="text-xs text-slate-400 border px-3 py-1 rounded-lg">Salir</button>
+            <h1 id="saludo" class="text-3xl font-black tracking-tighter text-slate-900">Cargando...</h1>
+            <button onclick="localStorage.clear(); location.reload();" class="text-xs text-slate-400 border px-3 py-1 rounded-lg hover:bg-white transition">Salir</button>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div class="lg:col-span-5 bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 space-y-6">
                 <label class="block">
                     <span class="text-xs font-black uppercase text-slate-400 mb-2 block tracking-widest text-center">Subir Archivo para Imprimir</span>
-                    <input type="file" accept=".pdf, image/*" onchange="analizarArchivo(event)" class="w-full text-sm file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-slate-900 file:text-white">
+                    <input type="file" accept=".pdf, image/*" onchange="analizarArchivo(event)" class="w-full text-sm file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-slate-900 file:text-white transition-opacity">
                 </label>
                 <div class="grid grid-cols-2 gap-4">
                     <input id="pags-count" type="number" readonly class="bg-slate-50 border-2 rounded-2xl p-4 font-bold text-center">
-                    <select id="impresora" onchange="actualizarPrecios()" class="bg-slate-50 border-2 rounded-2xl p-4 font-bold">
+                    <select id="impresora" onchange="actualizarPrecios()" class="bg-slate-50 border-2 rounded-2xl p-4 font-bold outline-none">
                         <option value="laser_bn">Laser B/N</option>
-                        <option value="smart_tank">Color</option>
+                        <option value="smart_tank">Color (Tinta)</option>
                     </select>
                 </div>
                 <div class="bg-slate-900 rounded-[2rem] p-8 text-center text-white shadow-2xl">
@@ -203,7 +202,7 @@
                     <p id="resumen-dinero" class="text-3xl font-black text-green-600">$0.00</p>
                 </div>
                 <div class="bg-slate-100/50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200">
-                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center">Monitor de Impresiones</h2>
+                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center uppercase">Monitor de Recibidos</h2>
                     <div id="historial" class="space-y-2 h-[450px] overflow-y-auto pr-2"></div>
                 </div>
             </div>

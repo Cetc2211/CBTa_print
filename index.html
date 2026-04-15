@@ -1,220 +1,53 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sistema de Impresiones - CBTa 130</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script type="module">
+    // ... (imports y firebaseConfig igual que el anterior) ...
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+    function escucharRegistros() {
+        // Forzamos la escucha a la colección exacta 'registros_impresion'
+        const q = query(collection(db, "registros_impresion"), orderBy("fecha", "desc"), limit(25));
+        
+        onSnapshot(q, (snapshot) => {
+            const lista = document.getElementById('historial');
+            const totalDisplay = document.getElementById('resumen-dinero');
+            
+            if (!lista) return; // Seguridad por si el elemento no carga
+            
+            let total$ = 0; 
+            lista.innerHTML = ""; // Limpiamos la lista para actualizar
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCDy-W8_3sB3WS8gVKZuzV_P6PdG1tBOUc",
-            authDomain: "academic-tracker-qeoxi.firebaseapp.com",
-            projectId: "academic-tracker-qeoxi",
-            storageBucket: "academic-tracker-qeoxi.firebasestorage.app",
-            messagingSenderId: "674671663079",
-            appId: "1:674671663079:web:96e8125d02652b024469e3"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const storage = getStorage(app);
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-
-        let coberturaDetectada = 0;
-        let archivoSeleccionado = null;
-        let nombreUsuario = localStorage.getItem('nombre_usuario') || "";
-        const isAdmin = nombreUsuario.toLowerCase().includes("cecilio");
-
-        window.onload = () => {
-            if (!nombreUsuario) document.getElementById('modal-registro').classList.remove('hidden');
-            else {
-                document.getElementById('saludo').innerText = `Hola, ${nombreUsuario}`;
-                // EL ADMINISTRADOR ESCUCHA LA COLECCIÓN "registros_impresion"
-                if (isAdmin) {
-                    document.getElementById('panel-admin').classList.remove('hidden');
-                    document.getElementById('btn-flotante-qr').classList.remove('hidden');
-                    escucharRegistros();
-                }
+            if (snapshot.empty) {
+                lista.innerHTML = "<p class='text-center text-slate-400 text-xs mt-10'>No hay archivos pendientes</p>";
+                totalDisplay.innerText = "$0.00";
+                return;
             }
-            generarQR();
-        };
 
-        window.analizarArchivo = async (e) => {
-            archivoSeleccionado = e.target.files[0];
-            if(!archivoSeleccionado) return;
-            document.getElementById('info-cobertura').innerText = "Analizando...";
-            if (archivoSeleccionado.type === 'application/pdf') {
-                const reader = new FileReader();
-                reader.onload = async function() {
-                    const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
-                    document.getElementById('pags-count').value = pdf.numPages;
-                    const page = await pdf.getPage(1);
-                    const canvas = document.createElement('canvas');
-                    const viewport = page.getViewport({scale: 0.2});
-                    canvas.height = viewport.height; canvas.width = viewport.width;
-                    await page.render({canvasContext: canvas.getContext('2d'), viewport: viewport}).promise;
-                    const data = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
-                    let color = 0;
-                    for(let i=0; i<data.length; i+=4) {
-                        if(Math.abs(data[i]-data[i+1])>15 || Math.abs(data[i]-data[i+2])>15) color++;
-                    }
-                    coberturaDetectada = (color/(data.length/4))*100;
-                    actualizarPrecios();
-                };
-                reader.readAsArrayBuffer(archivoSeleccionado);
-            } else {
-                document.getElementById('pags-count').value = 1;
-                coberturaDetectada = 20;
-                actualizarPrecios();
-            }
-        };
-
-        window.actualizarPrecios = () => {
-            const pags = parseInt(document.getElementById('pags-count').value) || 1;
-            const imp = document.getElementById('impresora').value;
-            let pU = (imp === 'laser_bn') ? 0.50 : (coberturaDetectada > 15 ? 3.50 : 1.50);
-            document.getElementById('display-total').innerText = `$${(pags * pU).toFixed(2)}`;
-            document.getElementById('info-cobertura').innerText = `Listo (${coberturaDetectada.toFixed(1)}% color)`;
-        };
-
-        window.registrar = async () => {
-            if(!archivoSeleccionado) return alert("Selecciona un archivo");
-            const btn = document.getElementById('btn-registrar');
-            btn.disabled = true; btn.innerText = "Registrando...";
-            try {
-                // 1. SUBIDA A STORAGE
-                const storageRef = ref(storage, `impresiones/${Date.now()}_${archivoSeleccionado.name}`);
-                const snapshot = await uploadBytes(storageRef, archivoSeleccionado);
-                const url = await getDownloadURL(snapshot.ref);
-
-                // 2. REGISTRO EN FIRESTORE (Colección: registros_impresion)
-                await addDoc(collection(db, "registros_impresion"), {
-                    usuario: nombreUsuario,
-                    archivo: archivoSeleccionado.name,
-                    archivoURL: url,
-                    impresora: document.getElementById('impresora').value,
-                    paginas: parseInt(document.getElementById('pags-count').value),
-                    total: parseFloat(document.getElementById('display-total').innerText.replace('$','')),
-                    fecha: serverTimestamp()
-                });
-                document.getElementById('modal-exito').classList.remove('hidden');
-            } catch (e) { 
-                console.error(e);
-                alert("Error crítico. Revisa la consola."); 
-            }
-            btn.disabled = false; btn.innerText = "REGISTRAR Y SUBIR";
-        };
-
-        function escucharRegistros() {
-            // BUSCAMOS EN LA MISMA COLECCIÓN: "registros_impresion"
-            const q = query(collection(db, "registros_impresion"), orderBy("fecha", "desc"), limit(25));
-            onSnapshot(q, (snapshot) => {
-                const lista = document.getElementById('historial');
-                let total$ = 0; lista.innerHTML = "";
-                snapshot.forEach((docSnap) => {
-                    const d = docSnap.data(); 
-                    total$ += d.total;
-                    const hora = d.fecha ? new Date(d.fecha.seconds * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : "";
-                    
-                    lista.innerHTML += `
-                        <div class="p-4 border-b flex justify-between items-center bg-white mb-2 rounded-2xl shadow-sm">
-                            <div class="text-xs">
-                                <b class="text-slate-900">${d.usuario}</b><br>
-                                <span class="text-slate-400 uppercase text-[9px]">${d.impresora} • ${hora}</span>
-                            </div>
-                            <div class="flex items-center gap-3">
-                                <a href="${d.archivoURL}" target="_blank" class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg text-[10px] font-bold border border-indigo-100">ABRIR</a>
-                                <span class="font-black text-green-600 text-sm">$${d.total.toFixed(2)}</span>
-                                <button onclick="window.borrarRegistro('${docSnap.id}')" class="text-red-200 hover:text-red-500 ml-1">×</button>
-                            </div>
-                        </div>`;
-                });
-                document.getElementById('resumen-dinero').innerText = `$${total$.toFixed(2)}`;
+            snapshot.forEach((docSnap) => {
+                const d = docSnap.data(); 
+                total$ += d.total || 0;
+                const hora = d.fecha ? new Date(d.fecha.seconds * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : "Reciente";
+                
+                // Creamos el diseño del registro que aparecerá en tu iPad
+                lista.innerHTML += `
+                    <div class="p-4 border-b flex justify-between items-center bg-white mb-2 rounded-2xl shadow-sm border border-slate-50">
+                        <div class="text-xs">
+                            <b class="text-slate-900 text-sm uppercase">${d.usuario}</b><br>
+                            <span class="text-slate-400 text-[10px] block truncate max-w-[150px]">${d.archivo}</span>
+                            <span class="text-indigo-400 font-bold text-[9px] uppercase">${d.impresora || 'Láser'} • ${hora}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <a href="${d.archivoURL}" target="_blank" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black shadow-md active:scale-95 transition-all">ABRIR</a>
+                            <span class="font-black text-green-600 text-sm ml-1">$${(d.total || 0).toFixed(2)}</span>
+                            <button onclick="window.borrarRegistro('${docSnap.id}')" class="text-red-100 hover:text-red-500 ml-1 font-bold text-lg">×</button>
+                        </div>
+                    </div>`;
             });
+            totalDisplay.innerText = `$${total$.toFixed(2)}`;
+        });
+    }
+
+    // Asegúrate de que esta función de borrado esté disponible
+    window.borrarRegistro = async (id) => { 
+        if(confirm("¿Ya imprimiste este archivo? Se eliminará de la lista.")) {
+            await deleteDoc(doc(db, "registros_impresion", id)); 
         }
-
-        window.borrarRegistro = async (id) => { if(confirm("¿Eliminar registro?")) await deleteDoc(doc(db, "registros_impresion", id)); };
-        window.generarQR = () => { new QRCode(document.getElementById("qrcode"), { text: window.location.href, width: 200, height: 200 }); };
-        window.mostrarQR = () => document.getElementById('modal-qr').classList.remove('hidden');
-        window.cerrarQR = () => document.getElementById('modal-qr').classList.add('hidden');
-        window.guardarPerfil = () => {
-            const n = document.getElementById('input-nombre').value;
-            if(n) { localStorage.setItem('nombre_usuario', n); location.reload(); }
-        };
-    </script>
-</head>
-<body class="bg-slate-50 min-h-screen text-slate-800 p-4 font-sans">
-
-    <button id="btn-flotante-qr" onclick="mostrarQR()" class="fixed bottom-6 right-6 bg-slate-900 text-white p-5 rounded-full shadow-2xl z-40 hidden hover:scale-105 transition-all">📲 QR</button>
-
-    <div id="modal-qr" class="fixed inset-0 bg-slate-900/95 flex items-center justify-center p-4 z-50 hidden" onclick="cerrarQR()">
-        <div class="bg-white p-8 rounded-[2.5rem] text-center" onclick="event.stopPropagation()">
-            <h2 class="text-2xl font-black mb-4">Registro CBTa 130</h2>
-            <div id="qrcode" class="flex justify-center mb-6"></div>
-            <button onclick="cerrarQR()" class="w-full bg-slate-100 py-4 rounded-2xl font-bold">Cerrar</button>
-        </div>
-    </div>
-
-    <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center shadow-2xl">
-            <h2 class="text-2xl font-black mb-4 text-slate-900">Bienvenido 👋</h2>
-            <input id="input-nombre" type="text" placeholder="Tu nombre" class="w-full border-2 p-4 rounded-2xl mb-4 text-center font-bold outline-none focus:border-indigo-500">
-            <button onclick="guardarPerfil()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold">Entrar al Sistema</button>
-        </div>
-    </div>
-
-    <div id="modal-exito" class="fixed inset-0 bg-green-600 flex items-center justify-center p-4 z-50 hidden text-center text-white">
-        <div class="max-w-sm w-full">
-            <h2 class="text-4xl font-black mb-4">✅ ¡Enviado!</h2>
-            <p class="mb-8 opacity-90 text-lg">Tu archivo está listo para imprimir en el iPad del Profr. Cecilio.</p>
-            <button onclick="location.reload()" class="w-full border-2 border-white py-4 rounded-2xl font-bold">Nueva Impresión</button>
-        </div>
-    </div>
-
-    <div class="max-w-5xl mx-auto lg:mt-10">
-        <header class="flex justify-between items-center mb-10">
-            <h1 id="saludo" class="text-3xl font-black tracking-tighter text-slate-900 uppercase">Cargando...</h1>
-            <button onclick="localStorage.clear(); location.reload();" class="text-xs text-slate-400 border px-3 py-1 rounded-lg">Salir</button>
-        </header>
-
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div class="lg:col-span-5 bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 space-y-6">
-                <label class="block">
-                    <span class="text-xs font-black uppercase text-slate-400 mb-2 block tracking-widest text-center">Subir Archivo para Imprimir</span>
-                    <input type="file" accept=".pdf, image/*" onchange="analizarArchivo(event)" class="w-full text-sm file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-slate-900 file:text-white">
-                </label>
-                <div class="grid grid-cols-2 gap-4">
-                    <input id="pags-count" type="number" readonly class="bg-slate-50 border-2 rounded-2xl p-4 font-bold text-center">
-                    <select id="impresora" onchange="actualizarPrecios()" class="bg-slate-50 border-2 rounded-2xl p-4 font-bold outline-none">
-                        <option value="laser_bn">Laser B/N ($0.50)</option>
-                        <option value="smart_tank">Color (Tinta)</option>
-                    </select>
-                </div>
-                <div class="bg-slate-900 rounded-[2rem] p-8 text-center text-white shadow-2xl">
-                    <p id="info-cobertura" class="text-green-400 text-[10px] font-black uppercase mb-2 tracking-widest uppercase">Listo para procesar</p>
-                    <div id="display-total" class="text-6xl font-black tracking-tighter">$0.00</div>
-                </div>
-                <button id="btn-registrar" onclick="registrar()" class="w-full bg-indigo-600 text-white font-black py-6 rounded-3xl text-xl shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">REGISTRAR Y SUBIR</button>
-            </div>
-
-            <div id="panel-admin" class="lg:col-span-7 space-y-4 hidden">
-                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 text-center">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ingresos del Día</p>
-                    <p id="resumen-dinero" class="text-3xl font-black text-green-600">$0.00</p>
-                </div>
-                <div class="bg-slate-100/50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200">
-                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center uppercase">Monitor de Recibidos</h2>
-                    <div id="historial" class="space-y-2 h-[450px] overflow-y-auto pr-2"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</body>
-</html>
+    };
+</script>

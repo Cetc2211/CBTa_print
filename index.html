@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>POS Pro - CBTa 130</title>
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -12,12 +11,9 @@
 </head>
 <body class="bg-slate-100 p-2 font-sans overflow-x-hidden">
 
-    <button id="btn-flotante-qr" class="fixed bottom-6 right-6 bg-slate-900 text-white p-5 rounded-full shadow-2xl z-40 hidden active:scale-95 transition-all">
-        📲 QR
-    </button>
+    <button id="btn-flotante-qr" class="fixed bottom-6 right-6 bg-slate-900 text-white p-5 rounded-full shadow-2xl z-40 hidden active:scale-95 transition-all">📲 QR</button>
 
     <div id="panel-admin" class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 hidden">
-        
         <div class="lg:col-span-4 h-[600px] sticky top-2 flex flex-col bg-white p-6 rounded-[2.5rem] shadow-2xl border-4 border-indigo-600">
             <h2 class="text-center font-black uppercase text-[10px] text-slate-400 mb-4 tracking-widest">Cuenta Actual</h2>
             <div id="items-carrito" class="flex-1 overflow-y-auto mb-4 border-t border-b py-2"></div>
@@ -26,7 +22,6 @@
                 <button id="btn-finalizar" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black shadow-xl disabled:opacity-50">FINALIZAR Y COBRAR</button>
             </div>
         </div>
-
         <div class="lg:col-span-8 space-y-4">
             <header class="flex justify-between items-center bg-white p-4 rounded-3xl shadow-sm">
                 <h1 id="saludo" class="font-black uppercase text-xs text-slate-500 tracking-tighter"></h1>
@@ -35,7 +30,6 @@
                     <button id="btn-abrir-db" class="bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-[10px]">📦 BASE DE DATOS</button>
                 </div>
             </header>
-
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div class="bg-white p-5 rounded-[2rem] border h-[480px] flex flex-col shadow-sm">
                     <h3 class="text-center font-black text-[10px] text-slate-400 uppercase mb-4 tracking-widest">Impresiones Recibidas</h3>
@@ -53,7 +47,6 @@
         <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl border-t-8 border-indigo-600 space-y-6">
             <h3 class="text-center font-black uppercase text-[10px] text-slate-400 tracking-widest">Subir Trabajo</h3>
             <input type="file" id="input-archivo" accept=".pdf, image/*" class="w-full text-xs file:bg-slate-900 file:text-white file:rounded-xl file:border-0 file:p-3 file:font-bold">
-            
             <div class="grid grid-cols-2 gap-2">
                 <div class="text-center bg-slate-50 p-2 rounded-2xl border">
                     <span class="text-[8px] font-bold text-slate-400 block uppercase">Páginas</span>
@@ -64,14 +57,11 @@
                     <option value="smart_tank">Color (Saturación)</option>
                 </select>
             </div>
-
             <div class="bg-slate-900 rounded-[2rem] p-8 text-center shadow-xl">
                 <p id="info-status" class="text-green-400 text-[9px] font-black uppercase mb-1 tracking-widest uppercase">Esperando archivo</p>
                 <div id="alumno-total" class="text-5xl font-black text-white">$0.00</div>
             </div>
-            <button id="btn-enviar-archivo" class="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl text-lg shadow-lg active:scale-95 transition-all">
-                ENVIAR AL PROFESOR
-            </button>
+            <button id="btn-enviar-archivo" class="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl text-lg shadow-lg active:scale-95 transition-all">ENVIAR AL PROFESOR</button>
         </div>
     </div>
 
@@ -88,38 +78,15 @@
                 <input id="db-venta" type="number" step="0.01" placeholder="Venta Público" class="p-3 border rounded-xl text-xs" required>
                 <button type="submit" class="col-span-2 lg:col-span-4 bg-indigo-600 text-white py-3 rounded-2xl font-black uppercase text-[10px]">Añadir Producto</button>
             </form>
-            <div class="overflow-y-auto flex-1">
-                <table class="w-full"><thead class="bg-slate-100 text-[9px] uppercase"><tr class="text-left"><th class="p-3">Nombre</th><th class="p-3 text-center">Stock</th><th class="p-3 text-center">Costo</th><th class="p-3 text-center">Venta</th><th class="p-3"></th></tr></thead><tbody id="tabla-db-body"></tbody></table>
-            </div>
+            <div class="overflow-y-auto flex-1"><table class="w-full"><thead class="bg-slate-100 text-[9px] uppercase"><tr class="text-left"><th class="p-3">Nombre</th><th class="p-3 text-center">Stock</th><th class="p-3 text-center">Costo</th><th class="p-3 text-center">Venta</th><th class="p-3"></th></tr></thead><tbody id="tabla-db-body"></tbody></table></div>
         </div>
     </div>
 
-    <div id="modal-scanner" class="fixed inset-0 bg-black z-[100] hidden flex flex-col">
-        <div id="reader" class="w-full h-full"></div>
-        <button id="btn-cerrar-scanner" class="absolute bottom-10 left-1/2 -translate-x-1/2 bg-red-600 text-white px-10 py-4 rounded-2xl font-black">CERRAR</button>
-    </div>
-
-    <div id="modal-qr" class="fixed inset-0 bg-slate-900/95 z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-[2.5rem] text-center shadow-2xl">
-            <h2 class="text-2xl font-black mb-4 uppercase">Escanear para Pedir</h2>
-            <div id="qrcode" class="flex justify-center mb-6 border-8 border-slate-50 p-2 rounded-xl"></div>
-            <button id="btn-cerrar-qr" class="w-full bg-slate-100 py-4 rounded-2xl font-bold uppercase">Cerrar</button>
-        </div>
-    </div>
-
-    <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-[200] hidden">
-        <div class="bg-white p-10 rounded-[2.5rem] w-full max-w-sm text-center">
-            <h2 class="text-3xl font-black uppercase mb-8">Acceso CBTa 130</h2>
-            <input id="input-nombre" placeholder="TU NOMBRE" class="w-full border-4 p-4 rounded-3xl mb-4 text-center font-black uppercase focus:border-indigo-600 outline-none">
-            <button id="btn-entrar" class="w-full bg-slate-900 text-white py-5 rounded-3xl font-black shadow-xl">ENTRAR</button>
-        </div>
-    </div>
-
-    <div id="modal-exito" class="fixed inset-0 bg-green-600 flex items-center justify-center p-4 z-[200] hidden text-center">
-        <div class="max-w-sm w-full"><h2 class="text-4xl font-black text-white uppercase mb-4">✅ ENVIADO</h2><button onclick="location.reload()" class="w-full border-4 border-white py-4 rounded-3xl font-black text-white uppercase">Aceptar</button></div>
-    </div>
+    <div id="modal-scanner" class="fixed inset-0 bg-black z-[100] hidden flex flex-col"><div id="reader" class="w-full h-full"></div><button id="btn-cerrar-scanner" class="absolute bottom-10 left-1/2 -translate-x-1/2 bg-red-600 text-white px-10 py-4 rounded-2xl font-black">CERRAR</button></div>
+    <div id="modal-qr" class="fixed inset-0 bg-slate-900/95 z-50 hidden flex items-center justify-center p-4"><div class="bg-white p-8 rounded-[2.5rem] text-center shadow-2xl"><h2 class="text-2xl font-black mb-4 uppercase">Escanear para Pedir</h2><div id="qrcode" class="flex justify-center mb-6 border-8 border-slate-50 p-2 rounded-xl"></div><button id="btn-cerrar-qr" class="w-full bg-slate-100 py-4 rounded-2xl font-bold uppercase">Cerrar</button></div></div>
+    <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-[200] hidden"><div class="bg-white p-10 rounded-[2.5rem] w-full max-w-sm text-center"><h2 class="text-3xl font-black uppercase mb-8">Acceso CBTa 130</h2><input id="input-nombre" placeholder="TU NOMBRE" class="w-full border-4 p-4 rounded-3xl mb-4 text-center font-black uppercase focus:border-indigo-600 outline-none"><button id="btn-entrar" class="w-full bg-slate-900 text-white py-5 rounded-3xl font-black">ENTRAR</button></div></div>
+    <div id="modal-exito" class="fixed inset-0 bg-green-600 flex items-center justify-center p-4 z-[200] hidden text-center"><div class="max-w-sm w-full"><h2 class="text-4xl font-black text-white uppercase mb-4">✅ ENVIADO</h2><button onclick="location.reload()" class="w-full border-4 border-white py-4 rounded-3xl font-black text-white uppercase">Aceptar</button></div></div>
 
     <script type="module" src="./js/app.js"></script>
-
 </body>
 </html>

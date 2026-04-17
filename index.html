@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Punto de Venta Integral - CBTa 130</title>
+    <title>Sistema POS - CBTa 130</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, deleteDoc, doc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, deleteDoc, doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
         const firebaseConfig = {
@@ -27,12 +26,14 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const storage = getStorage(app);
-        
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
         let carrito = [];
-        let html5QrCode = null;
+        let coberturaGlobal = 0; 
+        let archivoSeleccionado = null;
+        const nombreUsuario = localStorage.getItem('nombre_usuario') || "";
 
         window.onload = () => {
-            const nombreUsuario = localStorage.getItem('nombre_usuario') || "";
             if (!nombreUsuario) {
                 document.getElementById('modal-registro').classList.remove('hidden');
             } else {
@@ -42,189 +43,265 @@
                     document.getElementById('panel-admin').classList.remove('hidden');
                     escucharImpresiones();
                     escucharInventario();
+                } else {
+                    document.getElementById('panel-alumno').classList.remove('hidden');
                 }
             }
         };
 
-        // --- LÓGICA DEL CARRITO (VENTA TEMPORAL) ---
-        window.agregarAlCarrito = (id, nombre, precio, tipo = 'producto') => {
-            carrito.push({ id, nombre, precio, tipo });
-            renderizarCarrito();
-        };
+        // --- VISTA ALUMNO: ANÁLISIS Y COSTO ---
+        window.analizarArchivo = async (e) => {
+            archivoSeleccionado = e.target.files[0];
+            if(!archivoSeleccionado) return;
+            document.getElementById('info-cobertura').innerText = "Calculando costo...";
 
-        window.quitarDelCarrito = (index) => {
-            carrito.splice(index, 1);
-            renderizarCarrito();
-        };
-
-        function renderizarCarrito() {
-            const cont = document.getElementById('items-carrito');
-            const totalCont = document.getElementById('total-carrito');
-            cont.innerHTML = "";
-            let total = 0;
-            
-            carrito.forEach((item, index) => {
-                total += item.precio;
-                cont.innerHTML += `
-                    <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg mb-1 text-[11px]">
-                        <span class="truncate w-32 font-bold">${item.nombre}</span>
-                        <div class="flex items-center gap-2">
-                            <span>$${item.precio.toFixed(2)}</span>
-                            <button onclick="window.quitarDelCarrito(${index})" class="text-red-500 font-bold">×</button>
-                        </div>
-                    </div>`;
-            });
-            totalCont.innerText = `$${total.toFixed(2)}`;
-            document.getElementById('btn-finalizar').disabled = carrito.length === 0;
-        }
-
-        window.finalizarVenta = async () => {
-            if(!confirm("¿Confirmar cobro y finalizar venta?")) return;
-            
-            const btn = document.getElementById('btn-finalizar');
-            btn.disabled = true;
-            btn.innerText = "PROCESANDO...";
-
-            try {
-                for (const item of carrito) {
-                    if (item.tipo === 'producto') {
-                        const docRef = doc(db, "inventario", item.id);
-                        await updateDoc(docRef, {
-                            stock: increment(-1),
-                            ventasDia: increment(1),
-                            totalDia: increment(item.precio)
-                        });
-                    } else if (item.tipo === 'impresion') {
-                        // Opcional: Podrías marcar la impresión como "cobrada" en Firestore
-                        await deleteDoc(doc(db, "cola_impresion", item.id));
+            if (archivoSeleccionado.type === 'application/pdf') {
+                const reader = new FileReader();
+                reader.onload = async function() {
+                    const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
+                    document.getElementById('pags-count').value = pdf.numPages;
+                    const page = await pdf.getPage(1);
+                    const canvas = document.createElement('canvas');
+                    const viewport = page.getViewport({scale: 0.2});
+                    canvas.height = viewport.height; canvas.width = viewport.width;
+                    await page.render({canvasContext: canvas.getContext('2d'), viewport: viewport}).promise;
+                    const data = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+                    let color = 0;
+                    for(let i=0; i<data.length; i+=4) {
+                        if(Math.abs(data[i]-data[i+1])>15 || Math.abs(data[i]-data[i+2])>15) color++;
                     }
-                }
-                
-                // Guardar registro histórico de la venta total (Opcional)
-                await addDoc(collection(db, "historial_ventas"), {
-                    items: carrito,
-                    total: parseFloat(document.getElementById('total-carrito').innerText.replace('$','')),
+                    coberturaGlobal = (color/(data.length/4))*100;
+                    actualizarCostoAlumno();
+                };
+                reader.readAsArrayBuffer(archivoSeleccionado);
+            } else {
+                document.getElementById('pags-count').value = 1;
+                coberturaGlobal = 20; // Estimación para imágenes
+                actualizarCostoAlumno();
+            }
+        };
+
+        window.actualizarCostoAlumno = () => {
+            const pags = parseInt(document.getElementById('pags-count').value) || 1;
+            const imp = document.getElementById('impresora-alumno').value;
+            // Lógica de precios original solicitada
+            let pU = (imp === 'laser_bn') ? 0.50 : (coberturaGlobal > 15 ? 3.50 : 1.50);
+            const total = pags * pU;
+            document.getElementById('display-total').innerText = `$${total.toFixed(2)}`;
+            document.getElementById('info-cobertura').innerText = `Saturación: ${coberturaGlobal.toFixed(1)}%`;
+        };
+
+        window.enviarImpresion = async () => {
+            if(!archivoSeleccionado) return alert("Sube un archivo");
+            const btn = document.getElementById('btn-enviar');
+            btn.disabled = true; btn.innerText = "Enviando...";
+            try {
+                const storageRef = ref(storage, `impresiones/${Date.now()}_${archivoSeleccionado.name}`);
+                const snapshot = await uploadBytes(storageRef, archivoSeleccionado);
+                const url = await getDownloadURL(snapshot.ref);
+
+                await addDoc(collection(db, "cola_impresion"), {
+                    usuario: nombreUsuario,
+                    archivo: archivoSeleccionado.name,
+                    archivoURL: url,
+                    paginas: parseInt(document.getElementById('pags-count').value),
+                    cobertura: coberturaGlobal,
                     fecha: serverTimestamp()
                 });
-
-                alert("Venta completada con éxito");
-                carrito = [];
-                renderizarCarrito();
-            } catch (e) {
-                alert("Error al finalizar venta");
-            }
-            btn.disabled = false;
-            btn.innerText = "FINALIZAR Y COBRAR";
+                document.getElementById('modal-exito').classList.remove('hidden');
+            } catch (e) { alert("Error al enviar"); }
+            btn.disabled = false; btn.innerText = "ENVIAR AL PROFESOR";
         };
 
-        // --- ESCÁNER ---
-        window.abrirEscaner = () => {
-            document.getElementById('modal-escaner').classList.remove('hidden');
-            html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, async (text) => {
-                const docRef = doc(db, "inventario", text);
-                const snap = await getDoc(docRef);
-                if(snap.exists()){
-                    window.agregarAlCarrito(text, snap.data().nombre, snap.data().venta);
-                    window.cerrarEscaner();
-                }
-            });
-        };
-
-        window.cerrarEscaner = () => {
-            if(html5QrCode) html5QrCode.stop().then(() => document.getElementById('modal-escaner').classList.add('hidden'));
-        };
-
-        // --- ESCUCHA DE DATOS ---
+        // --- VISTA ADMIN (CECILIO/DANIKA) ---
         function escucharImpresiones() {
-            onSnapshot(query(collection(db, "cola_impresion"), orderBy("fecha", "desc")), (snap) => {
+            onSnapshot(collection(db, "cola_impresion"), (snap) => {
                 const cont = document.getElementById('lista-impresiones');
                 cont.innerHTML = "";
                 snap.forEach(docSnap => {
                     const d = docSnap.data();
+                    const id = docSnap.id;
+                    const sugerencia = d.cobertura > 15 ? "3.50" : (d.cobertura > 0.5 ? "1.50" : "0.50");
+                    
                     cont.innerHTML += `
-                        <div class="p-3 bg-white border-b flex justify-between items-center rounded-xl mb-1">
-                            <div class="text-[10px]"><b>${d.usuario}</b><br>${d.archivo}</div>
-                            <div class="flex items-center gap-2">
-                                <a href="${d.archivoURL}" target="_blank" class="text-indigo-600 font-bold text-[10px]">VER</a>
-                                <button onclick="window.agregarAlCarrito('${docSnap.id}', 'Imp: ${d.usuario}', ${d.total}, 'impresion')" class="bg-green-100 text-green-700 px-3 py-1 rounded-lg font-black text-[10px]">+ COBRAR</button>
+                        <div class="p-3 bg-white border rounded-xl mb-2 shadow-sm">
+                            <div class="flex justify-between items-center mb-1">
+                                <b class="text-[11px] uppercase text-slate-900">${d.usuario}</b>
+                                <span class="text-[9px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">${d.cobertura.toFixed(1)}% Sat.</span>
+                            </div>
+                            <p class="text-[9px] text-slate-400 mb-2 truncate">${d.archivo} (${d.paginas} pág)</p>
+                            <div class="flex gap-1">
+                                <select id="sel-${id}" class="text-[10px] bg-slate-100 border p-1 rounded font-bold flex-1">
+                                    <option value="0.50" ${sugerencia=="0.50"?'selected':''}>B/N ($0.50)</option>
+                                    <option value="1.50" ${sugerencia=="1.50"?'selected':''}>Col. Poco ($1.50)</option>
+                                    <option value="3.50" ${sugerencia=="3.50"?'selected':''}>Col. Mucho ($3.50)</option>
+                                </select>
+                                <button onclick="window.agregarImpAlCarrito('${id}', '${d.usuario}', ${d.paginas})" class="bg-green-600 text-white px-2 py-1 rounded-lg text-[10px] font-black">+ COBRAR</button>
+                                <a href="${d.archivoURL}" target="_blank" class="bg-slate-900 text-white px-2 py-1 rounded-lg text-[10px] font-bold">VER</a>
                             </div>
                         </div>`;
                 });
             });
         }
 
+        window.agregarImpAlCarrito = (id, usuario, pags) => {
+            const precio = parseFloat(document.getElementById(`sel-${id}`).value);
+            carrito.push({ id, nombre: `Imp: ${usuario} (${pags}p)`, precio: precio * pags, tipo: 'impresion' });
+            renderizarCarrito();
+        };
+
+        // --- INVENTARIO Y CARRITO ---
         function escucharInventario() {
             onSnapshot(collection(db, "inventario"), (snap) => {
-                const cont = document.getElementById('lista-stock');
-                cont.innerHTML = "";
+                const contStock = document.getElementById('lista-stock');
+                const contDB = document.getElementById('tabla-db-body');
+                contStock.innerHTML = ""; contDB.innerHTML = "";
                 snap.forEach(docSnap => {
-                    const p = docSnap.data();
-                    cont.innerHTML += `
-                        <div class="p-2 bg-slate-50 rounded-xl mb-1 flex justify-between items-center border">
-                            <div class="text-[10px] uppercase font-bold">${p.nombre} <span class="text-slate-400">($${p.venta})</span></div>
-                            <button onclick="window.agregarAlCarrito('${docSnap.id}', '${p.nombre}', ${p.venta})" class="bg-slate-900 text-white px-3 py-1 rounded-lg">+</button>
-                        </div>`;
+                    const p = docSnap.data(); const id = docSnap.id;
+                    contStock.innerHTML += `<div class="p-2 bg-slate-50 rounded-xl mb-1 flex justify-between items-center border">
+                        <span class="text-[10px] font-bold uppercase">${p.nombre} (${p.stock})</span>
+                        <button onclick="window.agregarProdAlCarrito('${id}', '${p.nombre}', ${p.venta})" class="bg-slate-900 text-white px-3 py-1 rounded-lg">+</button>
+                    </div>`;
+                    contDB.innerHTML += `<tr class="text-[10px] border-b">
+                        <td class="p-2 font-bold uppercase">${p.nombre}</td>
+                        <td class="p-2 text-center">${p.stock}</td>
+                        <td class="p-2 text-center text-red-500">$${p.costo.toFixed(2)}</td>
+                        <td class="p-2 text-center font-bold text-green-600">$${p.venta.toFixed(2)}</td>
+                        <td class="p-2 text-right"><button onclick="window.borrarDoc('inventario', '${id}')" class="text-red-300 hover:text-red-500">×</button></td>
+                    </tr>`;
                 });
             });
         }
 
-        window.agregarProductoBase = async () => {
-            const nombre = prompt("Nombre:");
-            const venta = parseFloat(prompt("Precio Venta:"));
-            if(nombre) await addDoc(collection(db, "inventario"), { nombre, venta, stock: 100, ventasDia: 0, totalDia: 0 });
+        window.agregarProdAlCarrito = (id, nombre, precio) => {
+            carrito.push({ id, nombre, precio, tipo: 'producto' });
+            renderizarCarrito();
         };
+
+        function renderizarCarrito() {
+            const cont = document.getElementById('items-carrito');
+            const totalCont = document.getElementById('total-carrito');
+            let total = 0; cont.innerHTML = "";
+            carrito.forEach((item, index) => {
+                total += item.precio;
+                cont.innerHTML += `<div class="flex justify-between p-2 bg-slate-50 rounded-lg mb-1 text-[11px] border">
+                    <span class="truncate w-32 font-medium">${item.nombre}</span>
+                    <span class="font-bold">$${item.precio.toFixed(2)} <button onclick="window.quitarDelCarrito(${index})" class="text-red-500 ml-1">×</button></span>
+                </div>`;
+            });
+            totalCont.innerText = `$${total.toFixed(2)}`;
+        }
+
+        window.quitarDelCarrito = (i) => { carrito.splice(i, 1); renderizarCarrito(); };
+
+        window.finalizarVenta = async () => {
+            if(!confirm("¿Confirmar cobro?")) return;
+            for (const item of carrito) {
+                if (item.tipo === 'producto') {
+                    await updateDoc(doc(db, "inventario", item.id), { stock: increment(-1) });
+                } else {
+                    await deleteDoc(doc(db, "cola_impresion", item.id));
+                }
+            }
+            alert("Venta completada"); carrito = []; renderizarCarrito();
+        };
+
+        // --- UI ---
+        window.guardarProductoDB = async (e) => {
+            e.preventDefault();
+            const p = {
+                nombre: document.getElementById('db-nombre').value,
+                stock: parseInt(document.getElementById('db-stock').value),
+                costo: parseFloat(document.getElementById('db-costo').value),
+                venta: parseFloat(document.getElementById('db-venta').value)
+            };
+            await addDoc(collection(db, "inventario"), p);
+            e.target.reset();
+        };
+
+        window.borrarDoc = async (col, id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, col, id)); };
     </script>
 </head>
-<body class="bg-slate-100 min-h-screen p-2 font-sans">
+<body class="bg-slate-100 p-2 font-sans overflow-x-hidden">
 
-    <div id="modal-escaner" class="fixed inset-0 bg-black z-[100] hidden">
-        <div id="reader" class="w-full h-full"></div>
-        <button onclick="cerrarEscaner()" class="absolute bottom-10 left-1/2 -translate-x-1/2 bg-white px-8 py-4 rounded-2xl font-black">CERRAR</button>
+    <div id="panel-alumno" class="max-w-md mx-auto space-y-4 hidden pt-10">
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl border-t-8 border-indigo-600 space-y-6">
+            <h3 class="text-center font-black uppercase text-[10px] text-slate-400 tracking-widest">Calculadora de Impresión</h3>
+            <input type="file" accept=".pdf, image/*" onchange="analizarArchivo(event)" class="w-full text-xs file:bg-slate-900 file:text-white file:rounded-xl file:border-0 file:p-3 file:font-bold">
+            <div class="grid grid-cols-2 gap-2">
+                <div class="text-center bg-slate-50 p-2 rounded-2xl border"><span class="text-[8px] font-bold text-slate-400 block">PÁGINAS</span><input id="pags-count" type="number" readonly value="0" class="w-full bg-transparent font-black text-center text-xl outline-none"></div>
+                <select id="impresora-alumno" onchange="actualizarCostoAlumno()" class="bg-slate-50 border rounded-2xl p-3 font-black text-xs uppercase outline-none">
+                    <option value="laser_bn">Láser B/N ($0.50)</option>
+                    <option value="smart_tank">Color (Tinta)</option>
+                </select>
+            </div>
+            <div class="bg-slate-900 rounded-[2rem] p-8 text-center shadow-xl">
+                <p id="info-cobertura" class="text-green-400 text-[9px] font-black uppercase mb-1 tracking-widest">Listo para analizar</p>
+                <div id="display-total" class="text-5xl font-black text-white">$0.00</div>
+                <p class="text-white/30 text-[8px] mt-2">COSTO ESTIMADO SEGÚN SATURACIÓN</p>
+            </div>
+            <button id="btn-enviar" onclick="enviarImpresion()" class="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl text-lg shadow-lg active:scale-95 transition-all">ENVIAR AL PROFESOR</button>
+        </div>
     </div>
 
     <div id="panel-admin" class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 hidden">
-        
-        <div class="lg:col-span-4 space-y-4">
-            <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl border-4 border-indigo-600 flex flex-col h-[600px]">
-                <h2 class="text-center font-black uppercase text-xs tracking-widest mb-4">Cuenta del Alumno</h2>
-                <div id="items-carrito" class="flex-1 overflow-y-auto mb-4 border-t border-b py-4"></div>
-                <div class="text-center">
-                    <p class="text-[10px] font-bold text-slate-400">TOTAL A PAGAR</p>
-                    <p id="total-carrito" class="text-5xl font-black text-slate-900">$0.00</p>
-                    <button id="btn-finalizar" onclick="finalizarVenta()" disabled class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black mt-4 shadow-xl disabled:bg-slate-300">FINALIZAR Y COBRAR</button>
-                </div>
+        <div class="lg:col-span-4 h-[600px] sticky top-2 flex flex-col bg-white p-6 rounded-[2.5rem] shadow-2xl border-4 border-indigo-600">
+            <h2 class="text-center font-black uppercase text-[10px] text-slate-400 mb-4 tracking-widest">Corte de Caja Actual</h2>
+            <div id="items-carrito" class="flex-1 overflow-y-auto mb-4 border-t border-b py-2"></div>
+            <div class="text-center">
+                <p id="total-carrito" class="text-5xl font-black text-slate-900 mb-4">$0.00</p>
+                <button id="btn-finalizar" onclick="finalizarVenta()" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black shadow-xl">FINALIZAR Y COBRAR</button>
             </div>
         </div>
 
         <div class="lg:col-span-8 space-y-4">
-            <header class="flex justify-between items-center bg-white p-4 rounded-3xl shadow-sm">
-                <h1 id="saludo" class="font-black uppercase text-sm"></h1>
-                <div class="flex gap-2">
-                    <button onclick="abrirEscaner()" class="bg-green-600 text-white px-4 py-2 rounded-xl font-bold text-xs">📸 ESCANEAR QR</button>
-                    <button onclick="agregarProductoBase()" class="bg-slate-100 px-4 py-2 rounded-xl font-bold text-xs">+ NUEVO PROD</button>
-                </div>
+            <header class="flex justify-between items-center bg-white p-4 rounded-3xl">
+                <h1 id="saludo" class="font-black uppercase text-xs"></h1>
+                <button onclick="document.getElementById('modal-db').classList.remove('hidden')" class="bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-[10px]">📦 BASE DE DATOS / STOCK</button>
             </header>
-
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div class="bg-white p-6 rounded-[2rem] shadow-sm h-[450px] flex flex-col border">
-                    <h3 class="text-center font-black text-[10px] text-slate-400 uppercase mb-4 tracking-widest">Impresiones por Cobrar</h3>
+                <div class="bg-white p-5 rounded-[2rem] border h-[480px] flex flex-col shadow-sm">
+                    <h3 class="text-center font-black text-[10px] text-slate-400 uppercase mb-4 tracking-widest">Cola de Impresiones</h3>
                     <div id="lista-impresiones" class="flex-1 overflow-y-auto"></div>
                 </div>
-
-                <div class="bg-white p-6 rounded-[2rem] shadow-sm h-[450px] flex flex-col border">
-                    <h3 class="text-center font-black text-[10px] text-slate-400 uppercase mb-4 tracking-widest">Papelería en Stock</h3>
+                <div class="bg-white p-5 rounded-[2rem] border h-[480px] flex flex-col shadow-sm">
+                    <h3 class="text-center font-black text-[10px] text-slate-400 uppercase mb-4 tracking-widest">Inventario Rápido</h3>
                     <div id="lista-stock" class="flex-1 overflow-y-auto"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-[100] hidden text-center">
-        <div class="bg-white p-8 rounded-[2.5rem] w-full max-w-sm">
-            <h2 class="text-2xl font-black mb-6">Identifícate 👋</h2>
-            <input id="input-nombre" type="text" placeholder="NOMBRE" class="w-full border-4 p-4 rounded-2xl mb-4 text-center font-black uppercase">
-            <button onclick="let n = document.getElementById('input-nombre').value; if(n){localStorage.setItem('nombre_usuario', n); location.reload();}" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black">ENTRAR</button>
+    <div id="modal-db" class="fixed inset-0 bg-slate-900/95 z-[100] hidden flex items-center justify-center p-2">
+        <div class="bg-white w-full max-w-4xl max-h-[90vh] rounded-[2rem] flex flex-col p-8 overflow-hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="font-black text-2xl tracking-tighter uppercase">Gestión de Papelería</h2>
+                <button onclick="document.getElementById('modal-db').classList.add('hidden')" class="text-red-500 font-bold uppercase text-xs border-2 border-red-500 px-4 py-2 rounded-full">Cerrar</button>
+            </div>
+            <form onsubmit="window.guardarProductoDB(event)" class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-6 bg-slate-50 p-4 rounded-3xl border">
+                <input id="db-nombre" placeholder="Nombre Producto" class="p-3 border rounded-xl uppercase text-xs font-bold" required>
+                <input id="db-stock" type="number" placeholder="Stock" class="p-3 border rounded-xl text-xs" required>
+                <input id="db-costo" type="number" step="0.01" placeholder="Costo Compra" class="p-3 border rounded-xl text-xs" required>
+                <input id="db-venta" type="number" step="0.01" placeholder="Venta Público" class="p-3 border rounded-xl text-xs" required>
+                <button class="col-span-2 lg:col-span-4 bg-indigo-600 text-white py-3 rounded-2xl font-black uppercase text-xs">Añadir a Base de Datos</button>
+            </form>
+            <div class="overflow-y-auto flex-1"><table class="w-full"><thead class="bg-slate-100 text-[9px] uppercase"><tr class="text-left"><th class="p-3">Producto</th><th class="p-3 text-center">Stock</th><th class="p-3 text-center">Costo</th><th class="p-3 text-center">Venta</th><th class="p-3"></th></tr></thead><tbody id="tabla-db-body"></tbody></table></div>
+        </div>
+    </div>
+
+    <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-[200] hidden">
+        <div class="bg-white p-10 rounded-[2.5rem] w-full max-w-sm text-center">
+            <h2 class="text-3xl font-black mb-8 uppercase tracking-tighter">Acceso Sistema</h2>
+            <input id="input-nombre" placeholder="TU NOMBRE" class="w-full border-4 p-4 rounded-3xl mb-4 text-center font-black uppercase focus:border-indigo-600 outline-none">
+            <button onclick="let n=document.getElementById('input-nombre').value; if(n){localStorage.setItem('nombre_usuario', n); location.reload();}" class="w-full bg-slate-900 text-white py-5 rounded-3xl font-black shadow-xl">ENTRAR</button>
+        </div>
+    </div>
+
+    <div id="modal-exito" class="fixed inset-0 bg-green-600 flex items-center justify-center p-4 z-50 hidden text-center">
+        <div class="max-w-sm w-full">
+            <h2 class="text-4xl font-black mb-4 text-white uppercase tracking-tighter">✅ ENVIADO</h2>
+            <p class="text-white mb-8 font-bold">Avisa al Profr. Cecilio para cobrar.</p>
+            <button onclick="location.reload()" class="w-full border-4 border-white py-4 rounded-3xl font-black text-white uppercase">Aceptar</button>
         </div>
     </div>
 </body>

@@ -15,10 +15,18 @@ export const enviarDocumentoNube = async (datos) => {
 export const escucharColaImpresion = (callback) => onSnapshot(query(collection(db, "cola_impresion"), orderBy("fecha", "desc")), callback);
 export const escucharInventarioDB = (callback) => onSnapshot(collection(db, "inventario"), callback);
 export const guardarNuevoProducto = async (p) => await addDoc(collection(db, "inventario"), { ...p, totalDia: 0 });
+
 export const obtenerProductoPorID = async (id) => {
-    const docSnap = await getDoc(doc(db, "inventario", id));
-    return docSnap.exists() ? docSnap.data() : null;
+    try {
+        const docSnap = await getDoc(doc(db, "inventario", id));
+        return docSnap.exists() ? docSnap.data() : null;
+    } catch(e) { return null; }
 };
+
+export const sumarStockProducto = async (id, cantidad) => {
+    return await updateDoc(doc(db, "inventario", id), { stock: increment(cantidad) });
+};
+
 export const procesarCobroVenta = async (carrito) => {
     for (const item of carrito) {
         if (item.tipo === 'producto') {
@@ -28,4 +36,5 @@ export const procesarCobroVenta = async (carrito) => {
         }
     }
 };
+
 export const eliminarRegistro = async (col, id) => await deleteDoc(doc(db, col, id));

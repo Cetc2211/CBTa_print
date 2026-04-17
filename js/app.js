@@ -1,4 +1,5 @@
-// js/app.js - Versión con Control de Impresora y QR Administrativo
+// js/app.js - Actualizado con escala de precios por saturación de color
+
 import * as db from './database.js';
 import * as ui from './ui-controller.js';
 
@@ -15,7 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (isAdmin) {
             ui.toggleModal('panel-admin', 'show');
-            // IMPORTANTE: Mostramos el botón de QR para que tú puedas generarlo y mostrarlo
             ui.toggleModal('btn-flotante-qr', 'show'); 
             db.escucharColaImpresion(renderCola);
             db.escucharInventarioDB(renderInv);
@@ -28,22 +28,31 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEvents();
 });
 
+// NUEVA FUNCIÓN: Lógica de precios por saturación
+function calcularPrecioUnitario(tipo, sat) {
+    if (tipo === 'laser_bn') return 0.50;
+    
+    // Escala solicitada para color
+    if (sat <= 30) return 1.00;
+    if (sat <= 50) return 1.50;
+    if (sat <= 65) return 2.00;
+    if (sat <= 85) return 2.50;
+    return 3.00; // 86% a 100%
+}
+
 function setupEvents() {
-    // Registro
     document.getElementById('btn-entrar')?.addEventListener('click', () => {
         const n = document.getElementById('input-nombre').value;
         if(n) { localStorage.setItem('nombre_usuario', n); location.reload(); }
     });
 
-    // QR
     document.getElementById('btn-flotante-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'show'));
     document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'hide'));
 
-    // Lógica de Alumno
     document.getElementById('input-archivo')?.addEventListener('change', async (e) => {
         archivo = e.target.files[0];
         if (!archivo) return;
-        document.getElementById('info-status').innerText = "Analizando...";
+        document.getElementById('info-status').innerText = "Analizando cobertura...";
         
         if (archivo.type === 'application/pdf') {
             const reader = new FileReader();
@@ -51,7 +60,6 @@ function setupEvents() {
                 const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
                 document.getElementById('alumno-pags').value = pdf.numPages;
                 
-                // Analizar saturación básica
                 const page = await pdf.getPage(1);
                 const canvas = document.createElement('canvas');
                 const viewport = page.getViewport({ scale: 0.2 });
@@ -59,17 +67,21 @@ function setupEvents() {
                 await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
                 const data = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
                 let color = 0;
-                for(let i=0; i<data.length; i+=4) if(Math.abs(data[i]-data[i+1])>15 || Math.abs(data[i]-data[i+2])>15) color++;
+                for(let i=0; i<data.length; i+=4) {
+                    if(Math.abs(data[i]-data[i+1])>15 || Math.abs(data[i]-data[i+2])>15) color++;
+                }
                 saturacion = (color / (data.length / 4)) * 100;
                 updateAlumnoPrecio();
             };
             reader.readAsArrayBuffer(archivo);
         } else {
             document.getElementById('alumno-pags').value = 1;
-            saturacion = 20; 
+            saturacion = 25; // Imagen predeterminada 25%
             updateAlumnoPrecio();
         }
     });
+
+    document.getElementById('alumno-imp')?.addEventListener('change', updateAlumnoPrecio);
 
     document.getElementById('btn-enviar-archivo')?.addEventListener('click', async () => {
         const btn = document.getElementById('btn-enviar-archivo');
@@ -84,25 +96,23 @@ function setupEvents() {
         btn.disabled = false; btn.innerText = "ENVIAR AL PROFESOR";
     });
 
-    // Lógica de Admin
     document.getElementById('btn-abrir-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'show'));
     document.getElementById('btn-cerrar-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'hide'));
     
     document.getElementById('btn-finalizar')?.addEventListener('click', async () => {
         if (carrito.length === 0) return;
         await db.procesarCobroVenta(carrito);
-        carrito = []; 
-        renderCarrito(); 
-        alert("Cobro procesado correctamente");
+        carrito = []; renderCarrito(); alert("Venta finalizada con éxito");
     });
 }
 
 function updateAlumnoPrecio() {
     const pags = parseInt(document.getElementById('alumno-pags').value) || 1;
-    const imp = document.getElementById('alumno-imp').value;
-    const pU = (imp === 'laser_bn') ? 0.50 : (saturacion > 15 ? 3.50 : 1.50);
+    const tipo = document.getElementById('alumno-imp').value;
+    const pU = calcularPrecioUnitario(tipo, saturacion);
+    
     document.getElementById('alumno-total').innerText = `$${(pags * pU).toFixed(2)}`;
-    document.getElementById('info-status').innerText = `Saturación: ${saturacion.toFixed(1)}%`;
+    document.getElementById('info-status').innerText = `Cobertura Color: ${saturacion.toFixed(1)}%`;
 }
 
 function renderCola(snap) {
@@ -110,20 +120,22 @@ function renderCola(snap) {
     cont.innerHTML = "";
     snap.forEach(docSnap => {
         const d = docSnap.data(); const id = docSnap.id;
-        // Sugerencia inteligente pero editable
-        const sugerencia = d.cobertura > 15 ? "3.50" : (d.cobertura > 0.5 ? "1.50" : "0.50");
+        const pU = calcularPrecioUnitario('color', d.cobertura);
         
         cont.innerHTML += `
             <div class="p-3 bg-white border rounded-xl mb-2 shadow-sm">
                 <div class="flex justify-between items-center mb-1">
                     <b class="text-[11px] uppercase">${d.usuario}</b>
-                    <span class="text-[9px] font-bold text-indigo-600">${d.cobertura.toFixed(1)}% Sat.</span>
+                    <span class="text-[9px] font-bold text-indigo-600">${d.cobertura.toFixed(1)}% Color</span>
                 </div>
                 <div class="flex gap-1">
                     <select id="sel-${id}" class="text-[10px] bg-slate-100 border p-1 rounded font-bold flex-1">
-                        <option value="0.50" ${sugerencia=="0.50"?'selected':''}>Láser B/N ($0.50)</option>
-                        <option value="1.50" ${sugerencia=="1.50"?'selected':''}>Smart Color Poco ($1.50)</option>
-                        <option value="3.50" ${sugerencia=="3.50"?'selected':''}>Smart Color Mucho ($3.50)</option>
+                        <option value="0.50">Láser B/N ($0.50)</option>
+                        <option value="1.00" ${pU==1.00?'selected':''}>Color 30% ($1.00)</option>
+                        <option value="1.50" ${pU==1.50?'selected':''}>Color 50% ($1.50)</option>
+                        <option value="2.00" ${pU==2.00?'selected':''}>Color 65% ($2.00)</option>
+                        <option value="2.50" ${pU==2.50?'selected':''}>Color 85% ($2.50)</option>
+                        <option value="3.00" ${pU==3.00?'selected':''}>Color Full ($3.00)</option>
                     </select>
                     <button onclick="window.agregarImpAlCarrito('${id}', '${d.usuario}', ${d.paginas})" class="bg-green-600 text-white px-2 py-1 rounded-lg text-[10px] font-black">+ COBRAR</button>
                     <a href="${d.archivoURL}" target="_blank" class="bg-slate-900 text-white px-2 py-1 rounded-lg text-[10px] font-bold">VER</a>

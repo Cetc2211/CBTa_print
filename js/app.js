@@ -35,15 +35,65 @@ function calcularPrecioUnitario(tipo, sat) {
 }
 
 function setupEvents() {
+    // Registro de usuario
     document.getElementById('btn-entrar')?.addEventListener('click', () => {
         const n = document.getElementById('input-nombre').value.trim();
         if(n) { localStorage.setItem('nombre_usuario', n); location.reload(); }
     });
-    
+
+    // Guardado de productos (CORREGIDO)
+    const formDb = document.getElementById('form-db');
+    if (formDb) {
+        formDb.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            console.log("Intentando guardar producto...");
+            
+            const p = {
+                nombre: document.getElementById('db-nombre').value.toUpperCase(),
+                stock: parseInt(document.getElementById('db-stock').value),
+                costo: parseFloat(document.getElementById('db-costo').value),
+                venta: parseFloat(document.getElementById('db-venta').value)
+            };
+
+            const res = await db.guardarNuevoProducto(p);
+            if(res) {
+                alert("✅ PRODUCTO GUARDADO CON ÉXITO");
+                formDb.reset();
+            } else {
+                alert("❌ NO SE PUDO GUARDAR. Revisa tu conexión.");
+            }
+        });
+    }
+
+    // Eventos de Modales y Scanner
+    document.getElementById('btn-abrir-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'show'));
+    document.getElementById('btn-cerrar-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'hide'));
+    document.getElementById('btn-flotante-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'show'));
+    document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'hide'));
+    document.getElementById('btn-cerrar-etiqueta')?.addEventListener('click', () => ui.toggleModal('modal-etiqueta', 'hide'));
+
+    document.getElementById('btn-abrir-scanner')?.addEventListener('click', () => {
+        ui.startScanner(async (text) => {
+            const prod = await db.obtenerProductoPorID(text);
+            if(prod) {
+                ui.stopScanner();
+                const op = confirm(`PRODUCTO: ${prod.nombre}\n\n¿Deseas VENDERLO (Aceptar) o SURTIR STOCK (Cancelar)?`);
+                if(op) { window.agregarProdAlCarrito(text, prod.nombre, prod.venta); }
+                else {
+                    const cant = prompt(`Surtir ${prod.nombre}. ¿Cuántas piezas llegaron?`, "1");
+                    if(cant) await db.sumarStockProducto(text, parseInt(cant));
+                }
+            }
+        });
+    });
+
+    document.getElementById('btn-cerrar-scanner')?.addEventListener('click', ui.stopScanner);
+
+    // Lógica Alumno
     document.getElementById('input-archivo')?.addEventListener('change', async (e) => {
         archivo = e.target.files[0];
         if (!archivo) return;
-        document.getElementById('info-status').innerText = "Calculando...";
+        document.getElementById('info-status').innerText = "Analizando...";
         if (archivo.type === 'application/pdf') {
             const reader = new FileReader();
             reader.onload = async function() {
@@ -67,59 +117,23 @@ function setupEvents() {
         }
     });
 
-    document.getElementById('alumno-imp')?.addEventListener('change', updateAlumnoPrecio);
-
     document.getElementById('btn-enviar-archivo')?.addEventListener('click', async () => {
         const res = await db.enviarDocumentoNube({ usuario: user, archivo, paginas: parseInt(document.getElementById('alumno-pags').value), cobertura: saturacion });
         if(res) ui.toggleModal('modal-exito', 'show');
     });
 
-    document.getElementById('btn-abrir-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'show'));
-    document.getElementById('btn-cerrar-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'hide'));
-    document.getElementById('btn-flotante-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'show'));
-    document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'hide'));
-    document.getElementById('btn-cerrar-etiqueta')?.addEventListener('click', () => ui.toggleModal('modal-etiqueta', 'hide'));
-
-    document.getElementById('btn-abrir-scanner')?.addEventListener('click', () => {
-        ui.startScanner(async (text) => {
-            const p = await db.obtenerProductoPorID(text);
-            if(p) {
-                ui.stopScanner();
-                const op = confirm(`PRODUCTO: ${p.nombre}\n\n¿Deseas VENDER (Aceptar) o SURTIR STOCK (Cancelar)?`);
-                if(op) { window.agregarProdAlCarrito(text, p.nombre, p.venta); }
-                else {
-                    const cant = prompt(`Stock actual: ${p.stock}\n¿Cuántas piezas vas a ingresar?`, "1");
-                    if(cant) await db.sumarStockProducto(text, parseInt(cant));
-                }
-            }
-        });
-    });
-
-    document.getElementById('btn-cerrar-scanner')?.addEventListener('click', ui.stopScanner);
     document.getElementById('btn-finalizar')?.addEventListener('click', async () => {
         if(carrito.length === 0) return;
         await db.procesarCobroVenta(carrito);
         carrito = []; renderCarrito(); alert("Venta finalizada");
     });
-
-    document.getElementById('form-db')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        await db.guardarNuevoProducto({ 
-            nombre: document.getElementById('db-nombre').value, 
-            stock: parseInt(document.getElementById('db-stock').value), 
-            costo: parseFloat(document.getElementById('db-costo').value), 
-            venta: parseFloat(document.getElementById('db-venta').value) 
-        });
-        e.target.reset();
-    });
 }
 
 function updateAlumnoPrecio() {
     const pags = parseInt(document.getElementById('alumno-pags').value) || 1;
-    const imp = document.getElementById('alumno-imp').value;
-    const pU = calcularPrecioUnitario(imp, saturacion);
+    const pU = calcularPrecioUnitario(document.getElementById('alumno-imp').value, saturacion);
     document.getElementById('alumno-total').innerText = `$${(pags * pU).toFixed(2)}`;
-    document.getElementById('info-status').innerText = `Sat: ${saturacion.toFixed(1)}%`;
+    document.getElementById('info-status').innerText = `Color: ${saturacion.toFixed(1)}%`;
 }
 
 function renderCola(snap) {
@@ -154,7 +168,7 @@ function renderInv(snap) {
         cont.innerHTML += `<div class="p-2 bg-slate-50 rounded-xl mb-1 flex justify-between items-center border">
             <span class="text-[10px] font-bold uppercase">${p.nombre} (${p.stock})</span>
             <div class="flex gap-1">
-                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 text-[10px] mr-2 font-bold">QR</button>
+                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 text-[10px] mr-2 font-bold uppercase">Etiqueta</button>
                 <button onclick="window.agregarProdAlCarrito('${p.id}', '${p.nombre}', ${p.venta})" class="bg-slate-900 text-white px-3 py-1 rounded-lg">+</button>
             </div></div>`;
     });
@@ -178,6 +192,7 @@ window.verEtiqueta = (id, nombre, precio) => {
     qrCont.innerHTML = ""; new QRCode(qrCont, { text: id, width: 150, height: 150 });
     ui.toggleModal('modal-etiqueta', 'show');
 };
+
 window.quitarDelCarrito = (i) => { carrito.splice(i,1); renderCarrito(); };
 window.agregarImpAlCarrito = (id, u, p) => { const pr = parseFloat(document.getElementById(`sel-${id}`).value); carrito.push({id, nombre: `Imp: ${u}`, precio: pr*p, tipo: 'impresion'}); renderCarrito(); };
 window.agregarProdAlCarrito = (id, n, p) => { carrito.push({id, nombre: n, precio: p, tipo: 'producto'}); renderCarrito(); };

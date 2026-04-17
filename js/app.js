@@ -1,4 +1,4 @@
-// js/app.js
+// js/app.js - Director de Orquesta
 import * as db from './database.js';
 import * as ui from './ui-controller.js';
 
@@ -18,7 +18,9 @@ function validarAcceso() {
     if (!nombreUsuario) {
         ui.toggleModal('modal-registro', 'show');
     } else {
-        document.getElementById('saludo').innerText = `Hola, ${nombreUsuario}`;
+        const saludoElem = document.getElementById('saludo');
+        if (saludoElem) saludoElem.innerText = `Hola, ${nombreUsuario}`;
+        
         const esAdmin = nombreUsuario.toLowerCase().includes("cecilio") || 
                         nombreUsuario.toLowerCase().includes("danika landeros");
         
@@ -39,28 +41,32 @@ async function procesarAnalisisArchivo(e) {
     archivoSeleccionado = e.target.files[0];
     if (!archivoSeleccionado) return;
 
-    document.getElementById('info-status').innerText = "Analizando saturación...";
+    const infoStatus = document.getElementById('info-status');
+    if (infoStatus) infoStatus.innerText = "Analizando saturación...";
     
     if (archivoSeleccionado.type === 'application/pdf') {
         const reader = new FileReader();
         reader.onload = async function() {
-            const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
-            document.getElementById('alumno-pags').value = pdf.numPages;
-            
-            // Analizar primera página para color
-            const page = await pdf.getPage(1);
-            const canvas = document.createElement('canvas');
-            const viewport = page.getViewport({ scale: 0.2 });
-            canvas.height = viewport.height; canvas.width = viewport.width;
-            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-            
-            const data = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
-            let colorPixels = 0;
-            for(let i=0; i<data.length; i+=4) {
-                if(Math.abs(data[i]-data[i+1])>15 || Math.abs(data[i]-data[i+2])>15) colorPixels++;
+            try {
+                const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
+                document.getElementById('alumno-pags').value = pdf.numPages;
+                
+                const page = await pdf.getPage(1);
+                const canvas = document.createElement('canvas');
+                const viewport = page.getViewport({ scale: 0.2 });
+                canvas.height = viewport.height; canvas.width = viewport.width;
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                
+                const data = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+                let colorPixels = 0;
+                for(let i=0; i<data.length; i+=4) {
+                    if(Math.abs(data[i]-data[i+1])>15 || Math.abs(data[i]-data[i+2])>15) colorPixels++;
+                }
+                saturacionGlobal = (colorPixels / (data.length / 4)) * 100;
+                actualizarCalculoAlumno();
+            } catch (err) {
+                console.error("Error al procesar PDF:", err);
             }
-            saturacionGlobal = (colorPixels / (data.length / 4)) * 100;
-            actualizarCalculoAlumno();
         };
         reader.readAsArrayBuffer(archivoSeleccionado);
     } else {
@@ -74,30 +80,20 @@ function actualizarCalculoAlumno() {
     const pags = parseInt(document.getElementById('alumno-pags').value) || 1;
     const tipo = document.getElementById('alumno-imp').value;
     let precioUni = (tipo === 'laser_bn') ? 0.50 : (saturacionGlobal > 15 ? 3.50 : 1.50);
-    document.getElementById('alumno-total').innerText = `$${(pags * precioUni).toFixed(2)}`;
-    document.getElementById('info-status').innerText = `Saturación: ${saturacionGlobal.toFixed(1)}%`;
+    
+    const displayTotal = document.getElementById('alumno-total');
+    const infoStatus = document.getElementById('info-status');
+    
+    if (displayTotal) displayTotal.innerText = `$${(pags * precioUni).toFixed(2)}`;
+    if (infoStatus) infoStatus.innerText = `Saturación: ${saturacionGlobal.toFixed(1)}%`;
 }
 
 // --- GESTIÓN DEL CARRITO (ADMIN) ---
-window.agregarImpAlCarrito = (id, usuario, pags) => {
-    const precio = parseFloat(document.getElementById(`sel-${id}`).value);
-    carrito.push({ id, nombre: `Imp: ${usuario} (${pags}p)`, precio: precio * pags, tipo: 'impresion' });
-    actualizarCarritoUI();
-};
-
-window.agregarProdAlCarrito = (id, nombre, precio) => {
-    carrito.push({ id, nombre, precio, tipo: 'producto' });
-    actualizarCarritoUI();
-};
-
-window.quitarDelCarrito = (index) => {
-    carrito.splice(index, 1);
-    actualizarCarritoUI();
-};
-
 function actualizarCarritoUI() {
     const cont = document.getElementById('items-carrito');
+    const totalDisp = document.getElementById('total-carrito');
     let total = 0;
+    if (!cont) return;
     cont.innerHTML = "";
     
     carrito.forEach((item, index) => {
@@ -110,35 +106,40 @@ function actualizarCarritoUI() {
                 </span>
             </div>`;
     });
-    document.getElementById('total-carrito').innerText = `$${total.toFixed(2)}`;
+    if (totalDisp) totalDisp.innerText = `$${total.toFixed(2)}`;
 }
 
 // --- HANDLERS DE EVENTOS ---
 function configurarListeners() {
-    // Registro
     document.getElementById('btn-entrar')?.addEventListener('click', () => {
         const n = document.getElementById('input-nombre').value;
         if(n) { localStorage.setItem('nombre_usuario', n); location.reload(); }
     });
 
-    // Alumno
     document.getElementById('input-archivo')?.addEventListener('change', procesarAnalisisArchivo);
     document.getElementById('alumno-imp')?.addEventListener('change', actualizarCalculoAlumno);
+    
     document.getElementById('btn-enviar-archivo')?.addEventListener('click', async () => {
+        const btn = document.getElementById('btn-enviar-archivo');
+        btn.disabled = true; btn.innerText = "Enviando...";
         const res = await db.enviarDocumentoNube({
             usuario: nombreUsuario, archivo: archivoSeleccionado,
             paginas: parseInt(document.getElementById('alumno-pags').value),
             cobertura: saturacionGlobal
         });
         if(res) ui.toggleModal('modal-exito', 'show');
+        btn.disabled = false; btn.innerText = "ENVIAR AL PROFESOR";
     });
 
-    // Admin
     document.getElementById('btn-abrir-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'show'));
     document.getElementById('btn-cerrar-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'hide'));
     document.getElementById('btn-abrir-scanner')?.addEventListener('click', () => ui.startScanner(onScanSuccess));
     document.getElementById('btn-cerrar-scanner')?.addEventListener('click', ui.stopScanner);
+    document.getElementById('btn-flotante-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'show'));
+    document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'hide'));
+
     document.getElementById('btn-finalizar')?.addEventListener('click', async () => {
+        if (carrito.length === 0) return;
         await db.procesarCobroVenta(carrito);
         carrito = [];
         actualizarCarritoUI();
@@ -160,6 +161,7 @@ function configurarListeners() {
 // --- CALLBACKS DE FIREBASE ---
 function renderizarColaImpresiones(snap) {
     const cont = document.getElementById('lista-impresiones');
+    if (!cont) return;
     cont.innerHTML = "";
     snap.forEach(docSnap => {
         const d = docSnap.data(); const id = docSnap.id;
@@ -185,6 +187,7 @@ function renderizarColaImpresiones(snap) {
 
 function renderizarInventario(snap) {
     const contStock = document.getElementById('lista-stock-rapido');
+    if (!contStock) return;
     const prods = [];
     contStock.innerHTML = "";
     snap.forEach(docSnap => {
@@ -207,7 +210,19 @@ async function onScanSuccess(decodedText) {
     }
 }
 
-// Hacer funciones disponibles globalmente para los onclick de los botones dinámicos
-window.quitarDelCarrito = quitarDelCarrito;
-window.agregarImpAlCarrito = agregarImpAlCarrito;
-window.agregarProdAlCarrito = agregarProdAlCarrito;
+// --- EXPOSICIÓN GLOBAL PARA ONCLICK ---
+window.quitarDelCarrito = (index) => {
+    carrito.splice(index, 1);
+    actualizarCarritoUI();
+};
+
+window.agregarImpAlCarrito = (id, usuario, pags) => {
+    const precio = parseFloat(document.getElementById(`sel-${id}`).value);
+    carrito.push({ id, nombre: `Imp: ${usuario} (${pags}p)`, precio: precio * pags, tipo: 'impresion' });
+    actualizarCarritoUI();
+};
+
+window.agregarProdAlCarrito = (id, nombre, precio) => {
+    carrito.push({ id, nombre, precio, tipo: 'producto' });
+    actualizarCarritoUI();
+};

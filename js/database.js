@@ -3,24 +3,32 @@ import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/fireba
 import { db, storage } from "./firebase-config.js";
 
 export const enviarDocumentoNube = async (datos) => {
-    const storageRef = ref(storage, `impresiones/${Date.now()}_${datos.archivo.name}`);
-    const snapshot = await uploadBytes(storageRef, datos.archivo);
-    const url = await getDownloadURL(snapshot.ref);
-    return await addDoc(collection(db, "cola_impresion"), {
-        usuario: datos.usuario, archivo: datos.archivo.name, archivoURL: url,
-        paginas: datos.paginas, cobertura: datos.cobertura, fecha: serverTimestamp()
-    });
+    try {
+        const storageRef = ref(storage, `impresiones/${Date.now()}_${datos.archivo.name}`);
+        const snapshot = await uploadBytes(storageRef, datos.archivo);
+        const url = await getDownloadURL(snapshot.ref);
+        return await addDoc(collection(db, "cola_impresion"), {
+            usuario: datos.usuario, archivo: datos.archivo.name, archivoURL: url,
+            paginas: datos.paginas, cobertura: datos.cobertura, fecha: serverTimestamp()
+        });
+    } catch(e) { console.error(e); return null; }
 };
 
 export const escucharColaImpresion = (callback) => onSnapshot(query(collection(db, "cola_impresion"), orderBy("fecha", "desc")), callback);
 export const escucharInventarioDB = (callback) => onSnapshot(collection(db, "inventario"), callback);
-export const guardarNuevoProducto = async (p) => await addDoc(collection(db, "inventario"), { ...p, totalDia: 0 });
+
+export const guardarNuevoProducto = async (p) => {
+    try {
+        return await addDoc(collection(db, "inventario"), { ...p, totalDia: 0 });
+    } catch(e) { 
+        alert("Error en Firebase: " + e.message); 
+        return null; 
+    }
+};
 
 export const obtenerProductoPorID = async (id) => {
-    try {
-        const docSnap = await getDoc(doc(db, "inventario", id));
-        return docSnap.exists() ? docSnap.data() : null;
-    } catch(e) { return null; }
+    const docSnap = await getDoc(doc(db, "inventario", id));
+    return docSnap.exists() ? docSnap.data() : null;
 };
 
 export const sumarStockProducto = async (id, cantidad) => {

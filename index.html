@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sistema de Impresiones - CBTa 130</title>
+    <title>Punto de Venta Integral - CBTa 130</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit, deleteDoc, doc, updateDoc, increment, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
         const firebaseConfig = {
@@ -26,202 +27,204 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const storage = getStorage(app);
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-
-        let coberturaDetectada = 0;
-        let archivoSeleccionado = null;
-        let nombreUsuario = localStorage.getItem('nombre_usuario') || "";
+        
+        let carrito = [];
+        let html5QrCode = null;
 
         window.onload = () => {
+            const nombreUsuario = localStorage.getItem('nombre_usuario') || "";
             if (!nombreUsuario) {
                 document.getElementById('modal-registro').classList.remove('hidden');
             } else {
                 document.getElementById('saludo').innerText = `Hola, ${nombreUsuario}`;
-                
-                // --- VALIDACIÓN DE ADMINISTRADORES ---
-                const nombreBuscado = nombreUsuario.toLowerCase();
-                // Se activa el panel si el nombre contiene "cecilio" o "danika landeros"
-                const esAdmin = nombreBuscado.includes("cecilio") || nombreBuscado.includes("danika landeros");
-
+                const esAdmin = nombreUsuario.toLowerCase().includes("cecilio") || nombreUsuario.toLowerCase().includes("danika landeros");
                 if (esAdmin) {
                     document.getElementById('panel-admin').classList.remove('hidden');
-                    document.getElementById('btn-flotante-qr').classList.remove('hidden');
-                    escucharRegistros();
+                    escucharImpresiones();
+                    escucharInventario();
                 }
             }
-            generarQR();
         };
 
-        window.analizarArchivo = async (e) => {
-            archivoSeleccionado = e.target.files[0];
-            if(!archivoSeleccionado) return;
-            document.getElementById('info-cobertura').innerText = "Analizando archivo...";
-
-            if (archivoSeleccionado.type === 'application/pdf') {
-                const reader = new FileReader();
-                reader.onload = async function() {
-                    const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
-                    document.getElementById('pags-count').value = pdf.numPages;
-                    const page = await pdf.getPage(1);
-                    const canvas = document.createElement('canvas');
-                    const viewport = page.getViewport({scale: 0.2});
-                    canvas.height = viewport.height; canvas.width = viewport.width;
-                    await page.render({canvasContext: canvas.getContext('2d'), viewport: viewport}).promise;
-                    const data = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
-                    let color = 0;
-                    for(let i=0; i<data.length; i+=4) {
-                        if(Math.abs(data[i]-data[i+1])>15 || Math.abs(data[i]-data[i+2])>15) color++;
-                    }
-                    coberturaDetectada = (color/(data.length/4))*100;
-                    actualizarPrecios();
-                };
-                reader.readAsArrayBuffer(archivoSeleccionado);
-            } else {
-                document.getElementById('pags-count').value = 1;
-                coberturaDetectada = 20;
-                actualizarPrecios();
-            }
+        // --- LÓGICA DEL CARRITO (VENTA TEMPORAL) ---
+        window.agregarAlCarrito = (id, nombre, precio, tipo = 'producto') => {
+            carrito.push({ id, nombre, precio, tipo });
+            renderizarCarrito();
         };
 
-        window.actualizarPrecios = () => {
-            const pags = parseInt(document.getElementById('pags-count').value) || 1;
-            const imp = document.getElementById('impresora').value;
-            let pU = (imp === 'laser_bn') ? 0.50 : (coberturaDetectada > 15 ? 3.50 : 1.50);
-            document.getElementById('display-total').innerText = `$${(pags * pU).toFixed(2)}`;
-            document.getElementById('info-cobertura').innerText = `Listo (${coberturaDetectada.toFixed(1)}% color)`;
+        window.quitarDelCarrito = (index) => {
+            carrito.splice(index, 1);
+            renderizarCarrito();
         };
 
-        window.registrar = async () => {
-            if(!archivoSeleccionado) return alert("Selecciona un archivo");
-            const btn = document.getElementById('btn-registrar');
-            btn.disabled = true; btn.innerText = "Subiendo...";
+        function renderizarCarrito() {
+            const cont = document.getElementById('items-carrito');
+            const totalCont = document.getElementById('total-carrito');
+            cont.innerHTML = "";
+            let total = 0;
+            
+            carrito.forEach((item, index) => {
+                total += item.precio;
+                cont.innerHTML += `
+                    <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg mb-1 text-[11px]">
+                        <span class="truncate w-32 font-bold">${item.nombre}</span>
+                        <div class="flex items-center gap-2">
+                            <span>$${item.precio.toFixed(2)}</span>
+                            <button onclick="window.quitarDelCarrito(${index})" class="text-red-500 font-bold">×</button>
+                        </div>
+                    </div>`;
+            });
+            totalCont.innerText = `$${total.toFixed(2)}`;
+            document.getElementById('btn-finalizar').disabled = carrito.length === 0;
+        }
+
+        window.finalizarVenta = async () => {
+            if(!confirm("¿Confirmar cobro y finalizar venta?")) return;
+            
+            const btn = document.getElementById('btn-finalizar');
+            btn.disabled = true;
+            btn.innerText = "PROCESANDO...";
+
             try {
-                const storageRef = ref(storage, `impresiones/${Date.now()}_${archivoSeleccionado.name}`);
-                const snapshot = await uploadBytes(storageRef, archivoSeleccionado);
-                const url = await getDownloadURL(snapshot.ref);
-
-                await addDoc(collection(db, "cola_impresion"), {
-                    usuario: nombreUsuario,
-                    archivo: archivoSeleccionado.name,
-                    archivoURL: url,
-                    total: parseFloat(document.getElementById('display-total').innerText.replace('$','')),
-                    fecha: serverTimestamp(),
-                    impresora: document.getElementById('impresora').value
+                for (const item of carrito) {
+                    if (item.tipo === 'producto') {
+                        const docRef = doc(db, "inventario", item.id);
+                        await updateDoc(docRef, {
+                            stock: increment(-1),
+                            ventasDia: increment(1),
+                            totalDia: increment(item.precio)
+                        });
+                    } else if (item.tipo === 'impresion') {
+                        // Opcional: Podrías marcar la impresión como "cobrada" en Firestore
+                        await deleteDoc(doc(db, "cola_impresion", item.id));
+                    }
+                }
+                
+                // Guardar registro histórico de la venta total (Opcional)
+                await addDoc(collection(db, "historial_ventas"), {
+                    items: carrito,
+                    total: parseFloat(document.getElementById('total-carrito').innerText.replace('$','')),
+                    fecha: serverTimestamp()
                 });
-                document.getElementById('modal-exito').classList.remove('hidden');
+
+                alert("Venta completada con éxito");
+                carrito = [];
+                renderizarCarrito();
             } catch (e) {
-                console.error(e);
-                alert("Error de registro.");
+                alert("Error al finalizar venta");
             }
-            btn.disabled = false; btn.innerText = "REGISTRAR Y SUBIR";
+            btn.disabled = false;
+            btn.innerText = "FINALIZAR Y COBRAR";
         };
 
-        window.forzarActualizacion = () => { location.reload(); };
+        // --- ESCÁNER ---
+        window.abrirEscaner = () => {
+            document.getElementById('modal-escaner').classList.remove('hidden');
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, async (text) => {
+                const docRef = doc(db, "inventario", text);
+                const snap = await getDoc(docRef);
+                if(snap.exists()){
+                    window.agregarAlCarrito(text, snap.data().nombre, snap.data().venta);
+                    window.cerrarEscaner();
+                }
+            });
+        };
 
-        function escucharRegistros() {
-            const q = query(collection(db, "cola_impresion"), orderBy("fecha", "desc"), limit(25));
-            onSnapshot(q, (snapshot) => {
-                const lista = document.getElementById('historial');
-                let total$ = 0; lista.innerHTML = "";
-                snapshot.forEach((docSnap) => {
-                    const d = docSnap.data(); total$ += d.total || 0;
-                    const hora = d.fecha ? new Date(d.fecha.seconds * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : "";
-                    lista.innerHTML += `
-                        <div class="p-4 border-b flex justify-between items-center bg-white mb-2 rounded-2xl shadow-sm border border-slate-100">
-                            <div class="text-xs">
-                                <b class="text-slate-900 uppercase text-sm">${d.usuario}</b><br>
-                                <span class="text-slate-400 truncate block max-w-[130px]">${d.archivo}</span>
-                                <span class="text-indigo-400 font-bold text-[9px] uppercase">${d.impresora || 'Láser'} • ${hora}</span>
-                            </div>
+        window.cerrarEscaner = () => {
+            if(html5QrCode) html5QrCode.stop().then(() => document.getElementById('modal-escaner').classList.add('hidden'));
+        };
+
+        // --- ESCUCHA DE DATOS ---
+        function escucharImpresiones() {
+            onSnapshot(query(collection(db, "cola_impresion"), orderBy("fecha", "desc")), (snap) => {
+                const cont = document.getElementById('lista-impresiones');
+                cont.innerHTML = "";
+                snap.forEach(docSnap => {
+                    const d = docSnap.data();
+                    cont.innerHTML += `
+                        <div class="p-3 bg-white border-b flex justify-between items-center rounded-xl mb-1">
+                            <div class="text-[10px]"><b>${d.usuario}</b><br>${d.archivo}</div>
                             <div class="flex items-center gap-2">
-                                <a href="${d.archivoURL}" target="_blank" class="bg-indigo-600 text-white px-4 py-3 rounded-xl text-[10px] font-black shadow-md">ABRIR</a>
-                                <span class="font-black text-green-600 text-sm">$${(d.total || 0).toFixed(2)}</span>
-                                <button onclick="borrarRegistro('${docSnap.id}')" class="text-red-200 ml-1 font-bold text-lg">×</button>
+                                <a href="${d.archivoURL}" target="_blank" class="text-indigo-600 font-bold text-[10px]">VER</a>
+                                <button onclick="window.agregarAlCarrito('${docSnap.id}', 'Imp: ${d.usuario}', ${d.total}, 'impresion')" class="bg-green-100 text-green-700 px-3 py-1 rounded-lg font-black text-[10px]">+ COBRAR</button>
                             </div>
                         </div>`;
                 });
-                document.getElementById('resumen-dinero').innerText = `$${total$.toFixed(2)}`;
             });
         }
 
-        window.borrarRegistro = async (id) => { if(confirm("¿Eliminar registro?")) await deleteDoc(doc(db, "cola_impresion", id)); };
-        window.generarQR = () => { new QRCode(document.getElementById("qrcode"), { text: window.location.href, width: 200, height: 200 }); };
-        window.mostrarQR = () => document.getElementById('modal-qr').classList.remove('hidden');
-        window.cerrarQR = () => document.getElementById('modal-qr').classList.add('hidden');
-        window.guardarPerfil = () => {
-            const n = document.getElementById('input-nombre').value;
-            if(n) { localStorage.setItem('nombre_usuario', n); location.reload(); }
+        function escucharInventario() {
+            onSnapshot(collection(db, "inventario"), (snap) => {
+                const cont = document.getElementById('lista-stock');
+                cont.innerHTML = "";
+                snap.forEach(docSnap => {
+                    const p = docSnap.data();
+                    cont.innerHTML += `
+                        <div class="p-2 bg-slate-50 rounded-xl mb-1 flex justify-between items-center border">
+                            <div class="text-[10px] uppercase font-bold">${p.nombre} <span class="text-slate-400">($${p.venta})</span></div>
+                            <button onclick="window.agregarAlCarrito('${docSnap.id}', '${p.nombre}', ${p.venta})" class="bg-slate-900 text-white px-3 py-1 rounded-lg">+</button>
+                        </div>`;
+                });
+            });
+        }
+
+        window.agregarProductoBase = async () => {
+            const nombre = prompt("Nombre:");
+            const venta = parseFloat(prompt("Precio Venta:"));
+            if(nombre) await addDoc(collection(db, "inventario"), { nombre, venta, stock: 100, ventasDia: 0, totalDia: 0 });
         };
     </script>
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-800 p-4 font-sans">
+<body class="bg-slate-100 min-h-screen p-2 font-sans">
 
-    <button id="btn-flotante-qr" onclick="mostrarQR()" class="fixed bottom-6 right-6 bg-slate-900 text-white p-5 rounded-full shadow-2xl z-40 hidden active:scale-95 transition-all">📲 QR</button>
-    
-    <div id="modal-qr" class="fixed inset-0 bg-slate-900/95 flex items-center justify-center p-4 z-50 hidden" onclick="cerrarQR()">
-        <div class="bg-white p-8 rounded-[2.5rem] text-center" onclick="event.stopPropagation()">
-            <h2 class="text-2xl font-black mb-4 uppercase text-slate-900">Registro CBTa 130</h2>
-            <div id="qrcode" class="flex justify-center mb-6 border-8 border-slate-50 p-2 rounded-xl"></div>
-            <button onclick="cerrarQR()" class="w-full bg-slate-100 py-4 rounded-2xl font-bold">Cerrar</button>
-        </div>
+    <div id="modal-escaner" class="fixed inset-0 bg-black z-[100] hidden">
+        <div id="reader" class="w-full h-full"></div>
+        <button onclick="cerrarEscaner()" class="absolute bottom-10 left-1/2 -translate-x-1/2 bg-white px-8 py-4 rounded-2xl font-black">CERRAR</button>
     </div>
 
-    <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center shadow-2xl">
-            <h2 class="text-2xl font-black mb-4">Bienvenido 👋</h2>
-            <input id="input-nombre" type="text" placeholder="Tu nombre" class="w-full border-2 p-4 rounded-2xl mb-4 text-center font-bold outline-none uppercase">
-            <button onclick="guardarPerfil()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold">Entrar</button>
-        </div>
-    </div>
-
-    <div id="modal-exito" class="fixed inset-0 bg-green-600 flex items-center justify-center p-4 z-50 hidden text-center">
-        <div class="max-w-sm w-full">
-            <h2 class="text-4xl font-black mb-4 text-white uppercase tracking-tighter">✅ ¡LISTO!</h2>
-            <button onclick="location.reload()" class="w-full border-2 border-white py-4 rounded-2xl font-bold text-white uppercase">Nueva Impresión</button>
-        </div>
-    </div>
-
-    <div class="max-w-5xl mx-auto lg:mt-10">
-        <header class="flex justify-between items-center mb-10">
-            <h1 id="saludo" class="text-3xl font-black tracking-tighter uppercase text-slate-900 uppercase">Cargando...</h1>
-            <button onclick="localStorage.clear(); location.reload();" class="text-xs text-slate-400 border px-3 py-1 rounded-lg">Salir</button>
-        </header>
-
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div class="lg:col-span-5 bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 space-y-6">
-                <label class="block">
-                    <span class="text-xs font-black uppercase text-slate-400 mb-2 block tracking-widest text-center">Subir Archivo</span>
-                    <input type="file" accept=".pdf, image/*" onchange="analizarArchivo(event)" class="w-full text-sm file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-slate-900 file:text-white">
-                </label>
-                <div class="grid grid-cols-2 gap-4">
-                    <input id="pags-count" type="number" readonly value="0" class="bg-slate-50 border-2 rounded-2xl p-4 font-black text-center text-xl">
-                    <select id="impresora" onchange="actualizarPrecios()" class="bg-slate-50 border-2 rounded-2xl p-4 font-black outline-none text-sm uppercase">
-                        <option value="laser_bn">Láser B/N ($0.50)</option>
-                        <option value="smart_tank">Color (Tinta)</option>
-                    </select>
-                </div>
-                <div class="bg-slate-900 rounded-[2rem] p-8 text-center shadow-2xl">
-                    <p id="info-cobertura" class="text-green-400 text-[10px] font-black uppercase mb-2 tracking-widest">Esperando...</p>
-                    <div id="display-total" class="text-6xl font-black tracking-tighter text-white">$0.00</div>
-                </div>
-                <button id="btn-registrar" onclick="registrar()" class="w-full bg-indigo-600 text-white font-black py-6 rounded-3xl text-xl shadow-lg">REGISTRAR Y SUBIR</button>
-            </div>
-
-            <div id="panel-admin" class="lg:col-span-7 space-y-4 hidden">
-                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center">
-                    <div class="text-center flex-1">
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center uppercase">Ingresos del Día</p>
-                        <p id="resumen-dinero" class="text-3xl font-black text-green-600">$0.00</p>
-                    </div>
-                    <button id="btn-update" onclick="forzarActualizacion()" class="bg-slate-100 p-4 rounded-2xl hover:bg-slate-200 active:scale-90 transition-all text-xl">
-                        🔄
-                    </button>
-                </div>
-                <div class="bg-slate-100/50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200">
-                    <h2 class="font-black text-slate-400 uppercase text-[10px] mb-6 tracking-widest text-center uppercase text-slate-400">Monitor de Recibidos</h2>
-                    <div id="historial" class="space-y-2 h-[450px] overflow-y-auto pr-2"></div>
+    <div id="panel-admin" class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 hidden">
+        
+        <div class="lg:col-span-4 space-y-4">
+            <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl border-4 border-indigo-600 flex flex-col h-[600px]">
+                <h2 class="text-center font-black uppercase text-xs tracking-widest mb-4">Cuenta del Alumno</h2>
+                <div id="items-carrito" class="flex-1 overflow-y-auto mb-4 border-t border-b py-4"></div>
+                <div class="text-center">
+                    <p class="text-[10px] font-bold text-slate-400">TOTAL A PAGAR</p>
+                    <p id="total-carrito" class="text-5xl font-black text-slate-900">$0.00</p>
+                    <button id="btn-finalizar" onclick="finalizarVenta()" disabled class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black mt-4 shadow-xl disabled:bg-slate-300">FINALIZAR Y COBRAR</button>
                 </div>
             </div>
+        </div>
+
+        <div class="lg:col-span-8 space-y-4">
+            <header class="flex justify-between items-center bg-white p-4 rounded-3xl shadow-sm">
+                <h1 id="saludo" class="font-black uppercase text-sm"></h1>
+                <div class="flex gap-2">
+                    <button onclick="abrirEscaner()" class="bg-green-600 text-white px-4 py-2 rounded-xl font-bold text-xs">📸 ESCANEAR QR</button>
+                    <button onclick="agregarProductoBase()" class="bg-slate-100 px-4 py-2 rounded-xl font-bold text-xs">+ NUEVO PROD</button>
+                </div>
+            </header>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="bg-white p-6 rounded-[2rem] shadow-sm h-[450px] flex flex-col border">
+                    <h3 class="text-center font-black text-[10px] text-slate-400 uppercase mb-4 tracking-widest">Impresiones por Cobrar</h3>
+                    <div id="lista-impresiones" class="flex-1 overflow-y-auto"></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-[2rem] shadow-sm h-[450px] flex flex-col border">
+                    <h3 class="text-center font-black text-[10px] text-slate-400 uppercase mb-4 tracking-widest">Papelería en Stock</h3>
+                    <div id="lista-stock" class="flex-1 overflow-y-auto"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-registro" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-[100] hidden text-center">
+        <div class="bg-white p-8 rounded-[2.5rem] w-full max-w-sm">
+            <h2 class="text-2xl font-black mb-6">Identifícate 👋</h2>
+            <input id="input-nombre" type="text" placeholder="NOMBRE" class="w-full border-4 p-4 rounded-2xl mb-4 text-center font-black uppercase">
+            <button onclick="let n = document.getElementById('input-nombre').value; if(n){localStorage.setItem('nombre_usuario', n); location.reload();}" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black">ENTRAR</button>
         </div>
     </div>
 </body>

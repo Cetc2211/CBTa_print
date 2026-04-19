@@ -17,7 +17,7 @@ export const startScanner = async (onSuccess) => {
     try {
         await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onSuccess);
     } catch (e) {
-        alert("Error de cámara: Activa los permisos en Safari.");
+        alert("Error cámara: Activa permisos en Safari.");
         el.classList.add('hidden');
     }
 };
@@ -37,7 +37,7 @@ export const renderDBTable = (prods, onDelete) => {
             <td class="p-3 text-center text-red-500">$${p.costo.toFixed(2)}</td>
             <td class="p-3 text-center text-green-600 font-bold">$${p.venta.toFixed(2)}</td>
             <td class="p-3 text-right">
-                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 mr-2 font-bold">QR</button>
+                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 mr-2 font-bold uppercase">QR</button>
                 <button onclick="window.eliminarProducto('${p.id}')" class="text-red-300">×</button>
             </td>
         </tr>`).join("");

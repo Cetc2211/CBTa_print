@@ -15,7 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ui.toggleModal('panel-admin', 'show');
             ui.toggleModal('btn-flotante-qr', 'show');
             db.escucharColaImpresion(renderCola);
-            db.escucharInventarioDB(renderInv);
+            db.escucharInventarioDB((snap) => {
+                renderInv(snap);
+                renderFinanzas(snap);
+            });
         } else {
             ui.toggleModal('panel-alumno', 'show');
             ui.toggleModal('btn-flotante-qr', 'show');
@@ -35,53 +38,40 @@ function calcularPrecioUnitario(tipo, sat) {
 }
 
 function setupEvents() {
-    // Registro de usuario
     document.getElementById('btn-entrar')?.addEventListener('click', () => {
         const n = document.getElementById('input-nombre').value.trim();
         if(n) { localStorage.setItem('nombre_usuario', n); location.reload(); }
     });
 
-    // Guardado de productos (CORREGIDO)
-    const formDb = document.getElementById('form-db');
-    if (formDb) {
-        formDb.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            console.log("Intentando guardar producto...");
-            
-            const p = {
-                nombre: document.getElementById('db-nombre').value.toUpperCase(),
-                stock: parseInt(document.getElementById('db-stock').value),
-                costo: parseFloat(document.getElementById('db-costo').value),
-                venta: parseFloat(document.getElementById('db-venta').value)
-            };
-
-            const res = await db.guardarNuevoProducto(p);
-            if(res) {
-                alert("✅ PRODUCTO GUARDADO CON ÉXITO");
-                formDb.reset();
-            } else {
-                alert("❌ NO SE PUDO GUARDAR. Revisa tu conexión.");
-            }
-        });
-    }
-
-    // Eventos de Modales y Scanner
     document.getElementById('btn-abrir-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'show'));
     document.getElementById('btn-cerrar-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'hide'));
+    document.getElementById('btn-abrir-finanzas')?.addEventListener('click', () => ui.toggleModal('modal-finanzas', 'show'));
+    document.getElementById('btn-cerrar-finanzas')?.addEventListener('click', () => ui.toggleModal('modal-finanzas', 'hide'));
+    document.getElementById('btn-cerrar-etiqueta')?.addEventListener('click', () => ui.toggleModal('modal-etiqueta', 'hide'));
     document.getElementById('btn-flotante-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'show'));
     document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'hide'));
-    document.getElementById('btn-cerrar-etiqueta')?.addEventListener('click', () => ui.toggleModal('modal-etiqueta', 'hide'));
+
+    document.getElementById('form-db')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const p = { 
+            nombre: document.getElementById('db-nombre').value.toUpperCase(), 
+            stock: parseInt(document.getElementById('db-stock').value), 
+            costo: parseFloat(document.getElementById('db-costo').value), 
+            venta: parseFloat(document.getElementById('db-venta').value) 
+        };
+        if(await db.guardarNuevoProducto(p)) { alert("✅ GUARDADO"); e.target.reset(); }
+    });
 
     document.getElementById('btn-abrir-scanner')?.addEventListener('click', () => {
         ui.startScanner(async (text) => {
-            const prod = await db.obtenerProductoPorID(text);
-            if(prod) {
+            const p = await db.obtenerProductoPorID(text);
+            if(p) {
                 ui.stopScanner();
-                const op = confirm(`PRODUCTO: ${prod.nombre}\n\n¿Deseas VENDERLO (Aceptar) o SURTIR STOCK (Cancelar)?`);
-                if(op) { window.agregarProdAlCarrito(text, prod.nombre, prod.venta); }
+                const op = confirm(`PRODUCTO: ${p.nombre}\n\n¿VENDER (Aceptar) o SURTIR STOCK (Cancelar)?`);
+                if(op) window.agregarProdAlCarrito(text, p.nombre, p.venta);
                 else {
-                    const cant = prompt(`Surtir ${prod.nombre}. ¿Cuántas piezas llegaron?`, "1");
-                    if(cant) await db.sumarStockProducto(text, parseInt(cant));
+                    const cant = prompt(`Surtir ${p.nombre}. ¿Cantidad?`, "1");
+                    if(cant) await db.sumarStockProducto(text, parseInt(cant), p.costo);
                 }
             }
         });
@@ -89,7 +79,6 @@ function setupEvents() {
 
     document.getElementById('btn-cerrar-scanner')?.addEventListener('click', ui.stopScanner);
 
-    // Lógica Alumno
     document.getElementById('input-archivo')?.addEventListener('change', async (e) => {
         archivo = e.target.files[0];
         if (!archivo) return;
@@ -133,7 +122,7 @@ function updateAlumnoPrecio() {
     const pags = parseInt(document.getElementById('alumno-pags').value) || 1;
     const pU = calcularPrecioUnitario(document.getElementById('alumno-imp').value, saturacion);
     document.getElementById('alumno-total').innerText = `$${(pags * pU).toFixed(2)}`;
-    document.getElementById('info-status').innerText = `Color: ${saturacion.toFixed(1)}%`;
+    document.getElementById('info-status').innerText = `Sat: ${saturacion.toFixed(1)}%`;
 }
 
 function renderCola(snap) {
@@ -168,11 +157,43 @@ function renderInv(snap) {
         cont.innerHTML += `<div class="p-2 bg-slate-50 rounded-xl mb-1 flex justify-between items-center border">
             <span class="text-[10px] font-bold uppercase">${p.nombre} (${p.stock})</span>
             <div class="flex gap-1">
-                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 text-[10px] mr-2 font-bold uppercase">Etiqueta</button>
+                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 text-[10px] font-bold uppercase">Etiqueta</button>
                 <button onclick="window.agregarProdAlCarrito('${p.id}', '${p.nombre}', ${p.venta})" class="bg-slate-900 text-white px-3 py-1 rounded-lg">+</button>
             </div></div>`;
     });
     ui.renderDBTable(prods, (id) => db.eliminarRegistro('inventario', id));
+}
+
+function renderFinanzas(snap) {
+    const tbody = document.getElementById('tabla-finanzas-body');
+    let totalInv = 0, totalIng = 0, totalGan = 0;
+    tbody.innerHTML = "";
+    snap.forEach(docSnap => {
+        const p = docSnap.data();
+        const inversion = p.gastoAcumulado || (p.stock * p.costo);
+        const ingresos = p.totalDia || 0;
+        const ganancia = ingresos - inversion;
+        const meta = ingresos >= inversion;
+        
+        totalInv += inversion; totalIng += ingresos;
+        if(ganancia > 0) totalGan += ganancia;
+
+        tbody.innerHTML += `<tr class="border-b bg-white hover:bg-slate-50 transition-colors">
+            <td class="p-4 font-black uppercase">${p.nombre}</td>
+            <td class="p-4 text-center font-bold text-blue-600">$${inversion.toFixed(2)}</td>
+            <td class="p-4 text-center font-bold">${p.ventasHistoricas || 0} pzas</td>
+            <td class="p-4 text-center font-bold text-green-600">$${ingresos.toFixed(2)}</td>
+            <td class="p-4 text-center">
+                <span class="px-3 py-1 rounded-full text-[8px] font-black uppercase ${meta ? 'bg-green-500 text-white' : 'bg-amber-100 text-amber-600'}">
+                    ${meta ? 'RECUPERADO' : 'PENDIENTE'}
+                </span>
+            </td>
+            <td class="p-4 text-right font-black ${ganancia > 0 ? 'text-indigo-600' : 'text-slate-300'}">$${ganancia.toFixed(2)}</td>
+        </tr>`;
+    });
+    document.getElementById('fin-inversion-total').innerText = `$${totalInv.toFixed(2)}`;
+    document.getElementById('fin-ingresos-totales').innerText = `$${totalIng.toFixed(2)}`;
+    document.getElementById('fin-utilidad-total').innerText = `$${totalGan.toFixed(2)}`;
 }
 
 function renderCarrito() {
@@ -180,7 +201,7 @@ function renderCarrito() {
     let total = 0; cont.innerHTML = "";
     carrito.forEach((item, index) => {
         total += item.precio;
-        cont.innerHTML += `<div class="flex justify-between p-2 bg-slate-50 rounded-lg mb-1 text-[11px] border"><span>${item.nombre}</span><span>$${item.precio.toFixed(2)} <button onclick="window.quitarDelCarrito(${index})" class="text-red-500 font-bold">×</button></span></div>`;
+        cont.innerHTML += `<div class="flex justify-between p-2 bg-slate-50 rounded-lg mb-1 border"><span>${item.nombre}</span><span>$${item.precio.toFixed(2)} <button onclick="window.quitarDelCarrito(${index})" class="text-red-500 font-bold">×</button></span></div>`;
     });
     document.getElementById('total-carrito').innerText = `$${total.toFixed(2)}`;
 }
@@ -192,7 +213,6 @@ window.verEtiqueta = (id, nombre, precio) => {
     qrCont.innerHTML = ""; new QRCode(qrCont, { text: id, width: 150, height: 150 });
     ui.toggleModal('modal-etiqueta', 'show');
 };
-
 window.quitarDelCarrito = (i) => { carrito.splice(i,1); renderCarrito(); };
 window.agregarImpAlCarrito = (id, u, p) => { const pr = parseFloat(document.getElementById(`sel-${id}`).value); carrito.push({id, nombre: `Imp: ${u}`, precio: pr*p, tipo: 'impresion'}); renderCarrito(); };
 window.agregarProdAlCarrito = (id, n, p) => { carrito.push({id, nombre: n, precio: p, tipo: 'producto'}); renderCarrito(); };

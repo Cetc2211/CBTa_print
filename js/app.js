@@ -43,41 +43,45 @@ function setupEvents() {
         if(n) { localStorage.setItem('nombre_usuario', n); location.reload(); }
     });
 
-    document.getElementById('btn-abrir-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'show'));
-    document.getElementById('btn-cerrar-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'hide'));
-    document.getElementById('btn-abrir-finanzas')?.addEventListener('click', () => ui.toggleModal('modal-finanzas', 'show'));
-    document.getElementById('btn-cerrar-finanzas')?.addEventListener('click', () => ui.toggleModal('modal-finanzas', 'hide'));
-    document.getElementById('btn-cerrar-etiqueta')?.addEventListener('click', () => ui.toggleModal('modal-etiqueta', 'hide'));
-    document.getElementById('btn-flotante-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'show'));
-    document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'hide'));
-
     document.getElementById('form-db')?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const id = document.getElementById('db-id').value;
         const p = { 
             nombre: document.getElementById('db-nombre').value.toUpperCase(), 
             stock: parseInt(document.getElementById('db-stock').value), 
             costo: parseFloat(document.getElementById('db-costo').value), 
             venta: parseFloat(document.getElementById('db-venta').value) 
         };
-        if(await db.guardarNuevoProducto(p)) { alert("✅ GUARDADO"); e.target.reset(); }
+        if (id) {
+            if(await db.actualizarProducto(id, p)) { alert("ACTUALIZADO"); limpiarFormDB(); }
+        } else {
+            if(await db.guardarNuevoProducto(p)) { alert("GUARDADO"); e.target.reset(); }
+        }
     });
+
+    document.getElementById('btn-cancelar-edicion')?.addEventListener('click', limpiarFormDB);
+    document.getElementById('btn-abrir-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'show'));
+    document.getElementById('btn-cerrar-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'hide'));
+    document.getElementById('btn-abrir-finanzas')?.addEventListener('click', () => ui.toggleModal('modal-finanzas', 'show'));
+    document.getElementById('btn-cerrar-finanzas')?.addEventListener('click', () => ui.toggleModal('modal-finanzas', 'hide'));
+    document.getElementById('btn-flotante-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'show'));
+    document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'hide'));
+    document.getElementById('btn-cerrar-etiqueta')?.addEventListener('click', () => ui.toggleModal('modal-etiqueta', 'hide'));
 
     document.getElementById('btn-abrir-scanner')?.addEventListener('click', () => {
         ui.startScanner(async (text) => {
             const p = await db.obtenerProductoPorID(text);
             if(p) {
                 ui.stopScanner();
-                const op = confirm(`PRODUCTO: ${p.nombre}\n\n¿VENDER (Aceptar) o SURTIR STOCK (Cancelar)?`);
+                const op = confirm(`PROD: ${p.nombre}\n\n¿VENDER (Aceptar) o SURTIR (Cancelar)?`);
                 if(op) window.agregarProdAlCarrito(text, p.nombre, p.venta);
                 else {
-                    const cant = prompt(`Surtir ${p.nombre}. ¿Cantidad?`, "1");
+                    const cant = prompt(`¿Cuántas piezas entran?`, "1");
                     if(cant) await db.sumarStockProducto(text, parseInt(cant), p.costo);
                 }
             }
         });
     });
-
-    document.getElementById('btn-cerrar-scanner')?.addEventListener('click', ui.stopScanner);
 
     document.getElementById('input-archivo')?.addEventListener('change', async (e) => {
         archivo = e.target.files[0];
@@ -116,6 +120,30 @@ function setupEvents() {
         await db.procesarCobroVenta(carrito);
         carrito = []; renderCarrito(); alert("Venta finalizada");
     });
+}
+
+window.prepararEdicion = async (id) => {
+    const p = await db.obtenerProductoPorID(id);
+    if (p) {
+        document.getElementById('db-id').value = id;
+        document.getElementById('db-nombre').value = p.nombre;
+        document.getElementById('db-stock').value = p.stock;
+        document.getElementById('db-costo').value = p.costo;
+        document.getElementById('db-venta').value = p.venta;
+        const btn = document.getElementById('btn-guardar-prod');
+        btn.innerText = "Actualizar";
+        btn.classList.replace('bg-indigo-600', 'bg-amber-500');
+        document.getElementById('btn-cancelar-edicion').classList.remove('hidden');
+    }
+};
+
+function limpiarFormDB() {
+    document.getElementById('db-id').value = "";
+    document.getElementById('form-db').reset();
+    const btn = document.getElementById('btn-guardar-prod');
+    btn.innerText = "Añadir Producto";
+    btn.classList.replace('bg-amber-500', 'bg-indigo-600');
+    document.getElementById('btn-cancelar-edicion').classList.add('hidden');
 }
 
 function updateAlumnoPrecio() {
@@ -157,11 +185,11 @@ function renderInv(snap) {
         cont.innerHTML += `<div class="p-2 bg-slate-50 rounded-xl mb-1 flex justify-between items-center border">
             <span class="text-[10px] font-bold uppercase">${p.nombre} (${p.stock})</span>
             <div class="flex gap-1">
-                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 text-[10px] font-bold uppercase">Etiqueta</button>
+                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 text-[10px] font-bold uppercase">QR</button>
                 <button onclick="window.agregarProdAlCarrito('${p.id}', '${p.nombre}', ${p.venta})" class="bg-slate-900 text-white px-3 py-1 rounded-lg">+</button>
             </div></div>`;
     });
-    ui.renderDBTable(prods, (id) => db.eliminarRegistro('inventario', id));
+    ui.renderDBTable(prods, (id) => db.eliminarRegistro('inventario', id), window.prepararEdicion);
 }
 
 function renderFinanzas(snap) {
@@ -170,26 +198,12 @@ function renderFinanzas(snap) {
     tbody.innerHTML = "";
     snap.forEach(docSnap => {
         const p = docSnap.data();
-        const inversion = p.gastoAcumulado || (p.stock * p.costo);
-        const ingresos = p.totalDia || 0;
-        const ganancia = ingresos - inversion;
-        const meta = ingresos >= inversion;
-        
-        totalInv += inversion; totalIng += ingresos;
-        if(ganancia > 0) totalGan += ganancia;
-
-        tbody.innerHTML += `<tr class="border-b bg-white hover:bg-slate-50 transition-colors">
-            <td class="p-4 font-black uppercase">${p.nombre}</td>
-            <td class="p-4 text-center font-bold text-blue-600">$${inversion.toFixed(2)}</td>
-            <td class="p-4 text-center font-bold">${p.ventasHistoricas || 0} pzas</td>
-            <td class="p-4 text-center font-bold text-green-600">$${ingresos.toFixed(2)}</td>
-            <td class="p-4 text-center">
-                <span class="px-3 py-1 rounded-full text-[8px] font-black uppercase ${meta ? 'bg-green-500 text-white' : 'bg-amber-100 text-amber-600'}">
-                    ${meta ? 'RECUPERADO' : 'PENDIENTE'}
-                </span>
-            </td>
-            <td class="p-4 text-right font-black ${ganancia > 0 ? 'text-indigo-600' : 'text-slate-300'}">$${ganancia.toFixed(2)}</td>
-        </tr>`;
+        const inv = p.gastoAcumulado || (p.stock * p.costo);
+        const ing = p.totalDia || 0;
+        const gan = ing - inv;
+        totalInv += inv; totalIng += ing;
+        if(gan > 0) totalGan += gan;
+        tbody.innerHTML += `<tr class="border-b bg-white"><td class="p-4 uppercase font-bold">${p.nombre}</td><td class="p-4 text-center">$${inv.toFixed(2)}</td><td class="p-4 text-center">${p.ventasHistoricas || 0}</td><td class="p-4 text-center text-green-600">$${ing.toFixed(2)}</td><td class="p-4 text-center"><span class="px-2 py-1 rounded-full text-[8px] font-black ${ing >= inv ? 'bg-green-500 text-white':'bg-amber-100 text-amber-600'}">${ing >= inv ? 'META OK':'PENDIENTE'}</span></td><td class="p-4 text-right font-black ${gan > 0 ? 'text-indigo-600':'text-slate-300'}">$${gan.toFixed(2)}</td></tr>`;
     });
     document.getElementById('fin-inversion-total').innerText = `$${totalInv.toFixed(2)}`;
     document.getElementById('fin-ingresos-totales').innerText = `$${totalIng.toFixed(2)}`;

@@ -27,19 +27,21 @@ export const stopScanner = async () => {
     toggleModal('modal-scanner', 'hide');
 };
 
-export const renderDBTable = (prods, onDelete) => {
+export const renderDBTable = (prods, onDelete, onEdit) => {
     const tbody = document.getElementById('tabla-db-body');
     if (!tbody) return;
     tbody.innerHTML = prods.map(p => `
-        <tr class="border-b">
+        <tr class="border-b hover:bg-slate-50">
             <td class="p-3 font-bold uppercase">${p.nombre}</td>
             <td class="p-3 text-center">${p.stock}</td>
             <td class="p-3 text-center text-red-500">$${p.costo.toFixed(2)}</td>
             <td class="p-3 text-center text-green-600 font-bold">$${p.venta.toFixed(2)}</td>
             <td class="p-3 text-right">
-                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 mr-2 font-bold uppercase">QR</button>
-                <button onclick="window.eliminarProducto('${p.id}')" class="text-red-300">×</button>
+                <button onclick="window.prepararEdicion('${p.id}')" class="text-amber-500 mr-2 font-black uppercase text-[9px]">Editar</button>
+                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 mr-2 font-black uppercase text-[9px]">QR</button>
+                <button onclick="window.eliminarProducto('${p.id}')" class="text-red-300 font-bold">×</button>
             </td>
         </tr>`).join("");
     window.eliminarProducto = onDelete;
+    window.prepararEdicion = onEdit;
 };

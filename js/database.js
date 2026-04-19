@@ -19,11 +19,8 @@ export const escucharInventarioDB = (callback) => onSnapshot(collection(db, "inv
 
 export const guardarNuevoProducto = async (p) => {
     try {
-        return await addDoc(collection(db, "inventario"), { ...p, totalDia: 0 });
-    } catch(e) { 
-        alert("Error en Firebase: " + e.message); 
-        return null; 
-    }
+        return await addDoc(collection(db, "inventario"), { ...p, totalDia: 0, ventasHistoricas: 0, gastoAcumulado: (p.stock * p.costo) });
+    } catch(e) { alert("Error Firebase: " + e.message); return null; }
 };
 
 export const obtenerProductoPorID = async (id) => {
@@ -31,15 +28,28 @@ export const obtenerProductoPorID = async (id) => {
     return docSnap.exists() ? docSnap.data() : null;
 };
 
-export const sumarStockProducto = async (id, cantidad) => {
-    return await updateDoc(doc(db, "inventario", id), { stock: increment(cantidad) });
+export const sumarStockProducto = async (id, cantidad, costoActual) => {
+    return await updateDoc(doc(db, "inventario", id), { 
+        stock: increment(cantidad),
+        gastoAcumulado: increment(cantidad * costoActual)
+    });
 };
 
 export const procesarCobroVenta = async (carrito) => {
     for (const item of carrito) {
         if (item.tipo === 'producto') {
-            await updateDoc(doc(db, "inventario", item.id), { stock: increment(-1), totalDia: increment(item.precio) });
+            await updateDoc(doc(db, "inventario", item.id), { 
+                stock: increment(-1), 
+                totalDia: increment(item.precio),
+                ventasHistoricas: increment(1)
+            });
         } else {
+            // Guardamos registro de ingreso por servicio para finanzas globales
+            await addDoc(collection(db, "ingresos_servicios"), {
+                monto: item.precio,
+                fecha: serverTimestamp(),
+                usuario: item.nombre
+            });
             await deleteDoc(doc(db, "cola_impresion", item.id));
         }
     }

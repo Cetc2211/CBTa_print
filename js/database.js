@@ -23,9 +23,12 @@ export const guardarNuevoProducto = async (p) => {
     } catch(e) { alert("Error Firebase: " + e.message); return null; }
 };
 
-export const obtenerProductoPorID = async (id) => {
-    const docSnap = await getDoc(doc(db, "inventario", id));
-    return docSnap.exists() ? docSnap.data() : null;
+export const actualizarProducto = async (id, datos) => {
+    try {
+        const docRef = doc(db, "inventario", id);
+        await updateDoc(docRef, { ...datos, gastoAcumulado: (datos.stock * datos.costo) });
+        return true;
+    } catch (e) { alert("Error al actualizar: " + e.message); return false; }
 };
 
 export const sumarStockProducto = async (id, cantidad, costoActual) => {
@@ -33,6 +36,13 @@ export const sumarStockProducto = async (id, cantidad, costoActual) => {
         stock: increment(cantidad),
         gastoAcumulado: increment(cantidad * costoActual)
     });
+};
+
+export const obtenerProductoPorID = async (id) => {
+    try {
+        const docSnap = await getDoc(doc(db, "inventario", id));
+        return docSnap.exists() ? docSnap.data() : null;
+    } catch(e) { return null; }
 };
 
 export const procesarCobroVenta = async (carrito) => {
@@ -44,12 +54,7 @@ export const procesarCobroVenta = async (carrito) => {
                 ventasHistoricas: increment(1)
             });
         } else {
-            // Guardamos registro de ingreso por servicio para finanzas globales
-            await addDoc(collection(db, "ingresos_servicios"), {
-                monto: item.precio,
-                fecha: serverTimestamp(),
-                usuario: item.nombre
-            });
+            await addDoc(collection(db, "ingresos_servicios"), { monto: item.precio, fecha: serverTimestamp(), usuario: item.nombre });
             await deleteDoc(doc(db, "cola_impresion", item.id));
         }
     }

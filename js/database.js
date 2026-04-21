@@ -5,12 +5,20 @@ import { db, storage } from "./firebase-config.js";
 export const enviarDocumentoNube = async (datos) => {
     try {
         if (!datos.archivo) return null;
-        const storageRef = ref(storage, `impresiones/${Date.now()}_${datos.archivo.name}`);
+        const nombreLimpio = datos.archivo.name.replace(/[^a-zA-Z0-9.]/g, '_');
+        const storageRef = ref(storage, `impresiones/${Date.now()}_${nombreLimpio}`);
+        
         const snapshot = await uploadBytes(storageRef, datos.archivo);
         const url = await getDownloadURL(snapshot.ref);
+        
         return await addDoc(collection(db, "cola_impresion"), {
-            usuario: datos.usuario, archivo: datos.archivo.name, archivoURL: url,
-            paginas: datos.paginas, cobertura: datos.cobertura, fecha: serverTimestamp()
+            usuario: datos.usuario, 
+            archivo: datos.archivo.name, 
+            archivoURL: url,
+            paginas: datos.paginas, 
+            cobertura: datos.cobertura, 
+            tipoImpresion: datos.tipoImpresion, // <-- Guarda la elección del alumno
+            fecha: serverTimestamp()
         });
     } catch(e) { 
         console.error("Error en subida:", e); 

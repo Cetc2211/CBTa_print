@@ -38,13 +38,11 @@ function calcularPrecioUnitario(tipo, sat) {
 }
 
 function setupEvents() {
-    // Registro
     document.getElementById('btn-entrar')?.addEventListener('click', () => {
         const n = document.getElementById('input-nombre').value.trim();
         if(n) { localStorage.setItem('nombre_usuario', n); location.reload(); }
     });
 
-    // Guardado y Edición Stock
     document.getElementById('form-db')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('db-id').value;
@@ -61,7 +59,7 @@ function setupEvents() {
         }
     });
 
-    // Botón de Enviar Alumno (REFRESCADO Y BLINDADO)
+    // BOTÓN DE ENVÍO REFORZADO
     const btnEnviar = document.getElementById('btn-enviar-archivo');
     if (btnEnviar) {
         btnEnviar.addEventListener('click', async () => {
@@ -71,10 +69,14 @@ function setupEvents() {
             btnEnviar.innerText = "⏳ SUBIENDO...";
             btnEnviar.style.opacity = "0.5";
 
+            const tipoSeleccionado = document.getElementById('alumno-imp').value;
+
             const res = await db.enviarDocumentoNube({ 
-                usuario: user, archivo, 
+                usuario: user, 
+                archivo, 
                 paginas: parseInt(document.getElementById('alumno-pags').value) || 1, 
-                cobertura: saturacion 
+                cobertura: saturacion,
+                tipoImpresion: tipoSeleccionado
             });
 
             if(res) {
@@ -88,7 +90,6 @@ function setupEvents() {
         });
     }
 
-    // Modales Navegación
     document.getElementById('btn-cancelar-edicion')?.addEventListener('click', limpiarFormDB);
     document.getElementById('btn-abrir-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'show'));
     document.getElementById('btn-cerrar-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'hide'));
@@ -98,7 +99,6 @@ function setupEvents() {
     document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'hide'));
     document.getElementById('btn-cerrar-etiqueta')?.addEventListener('click', () => ui.toggleModal('modal-etiqueta', 'hide'));
 
-    // Scanner
     document.getElementById('btn-abrir-scanner')?.addEventListener('click', () => {
         ui.startScanner(async (text) => {
             const p = await db.obtenerProductoPorID(text);
@@ -150,12 +150,42 @@ function setupEvents() {
     });
 }
 
+function renderCola(snap) {
+    const cont = document.getElementById('lista-impresiones');
+    if(!cont) return;
+    cont.innerHTML = "";
+    snap.forEach(docSnap => {
+        const d = docSnap.data(); 
+        const id = docSnap.id;
+        
+        // LÓGICA DE PRE-SELECCIÓN: Si el alumno pidió B/N, forzamos 0.50
+        let precioSugerido = (d.tipoImpresion === 'laser_bn') ? 0.50 : calcularPrecioUnitario('color', d.cobertura);
+
+        cont.innerHTML += `<div class="p-3 bg-white border rounded-xl mb-2 shadow-sm">
+            <div class="flex justify-between items-center mb-1">
+                <b class="text-[11px] uppercase">${d.usuario}</b>
+                <span class="text-[9px] font-bold ${d.tipoImpresion === 'laser_bn' ? 'text-slate-500' : 'text-indigo-600'} uppercase">
+                    Pidiò: ${d.tipoImpresion === 'laser_bn' ? 'Láser B/N' : 'Color Smart'}
+                </span>
+            </div>
+            <div class="flex gap-1">
+                <select id="sel-${id}" class="text-[10px] bg-slate-100 border p-1 rounded font-bold flex-1">
+                    <option value="0.50" ${precioSugerido == 0.50 ? 'selected' : ''}>Láser B/N ($0.50)</option>
+                    <option value="1.00" ${precioSugerido == 1.00 ? 'selected' : ''}>Col. 30% ($1.00)</option>
+                    <option value="1.50" ${precioSugerido == 1.50 ? 'selected' : ''}>Col. 50% ($1.50)</option>
+                    <option value="2.00" ${precioSugerido == 2.00 ? 'selected' : ''}>Col. 65% ($2.00)</option>
+                    <option value="2.50" ${precioSugerido == 2.50 ? 'selected' : ''}>Col. 85% ($2.50)</option>
+                    <option value="3.00" ${precioSugerido == 3.00 ? 'selected' : ''}>Col. 100% ($3.00)</option>
+                </select>
+                <button onclick="window.agregarImpAlCarrito('${id}', '${d.usuario}', ${d.paginas})" class="bg-green-600 text-white px-2 py-1 rounded-lg text-[10px] font-black">+ COBRAR</button>
+                <a href="${d.archivoURL}" target="_blank" class="bg-slate-900 text-white px-2 py-1 rounded-lg text-[10px] font-bold">VER</a>
+            </div></div>`;
+    });
+}
+
 // FUNCIONES GLOBALES
 window.cerrarSesion = () => {
-    if(confirm("¿Quieres cerrar sesión? Esto te permitirá entrar como alumno para pruebas.")) {
-        localStorage.removeItem('nombre_usuario');
-        location.reload();
-    }
+    if(confirm("¿Cerrar sesión?")) { localStorage.removeItem('nombre_usuario'); location.reload(); }
 };
 
 window.prepararEdicion = async (id) => {
@@ -168,7 +198,7 @@ window.prepararEdicion = async (id) => {
         document.getElementById('db-venta').value = p.venta;
         const btn = document.getElementById('btn-guardar-prod');
         btn.innerText = "Actualizar";
-        btn.classList.replace('bg-indigo-600', 'bg-amber-500');
+        btn.classList.add('bg-amber-500');
         document.getElementById('btn-cancelar-edicion').classList.remove('hidden');
     }
 };
@@ -178,7 +208,7 @@ function limpiarFormDB() {
     document.getElementById('form-db').reset();
     const btn = document.getElementById('btn-guardar-prod');
     btn.innerText = "Añadir Producto";
-    btn.classList.replace('bg-amber-500', 'bg-indigo-600');
+    btn.classList.remove('bg-amber-500');
     document.getElementById('btn-cancelar-edicion').classList.add('hidden');
 }
 
@@ -187,30 +217,6 @@ function updateAlumnoPrecio() {
     const pU = calcularPrecioUnitario(document.getElementById('alumno-imp').value, saturacion);
     document.getElementById('alumno-total').innerText = `$${(pags * pU).toFixed(2)}`;
     document.getElementById('info-status').innerText = `Sat: ${saturacion.toFixed(1)}%`;
-}
-
-function renderCola(snap) {
-    const cont = document.getElementById('lista-impresiones');
-    if(!cont) return;
-    cont.innerHTML = "";
-    snap.forEach(docSnap => {
-        const d = docSnap.data(); const id = docSnap.id;
-        const pU = calcularPrecioUnitario('color', d.cobertura);
-        cont.innerHTML += `<div class="p-3 bg-white border rounded-xl mb-2 shadow-sm">
-            <div class="flex justify-between items-center mb-1"><b class="text-[11px] uppercase">${d.usuario}</b><span class="text-[9px] font-bold text-indigo-600">${d.cobertura.toFixed(1)}% Sat.</span></div>
-            <div class="flex gap-1">
-                <select id="sel-${id}" class="text-[10px] bg-slate-100 border p-1 rounded font-bold flex-1">
-                    <option value="0.50">B/N ($0.50)</option>
-                    <option value="1.00" ${pU==1.00?'selected':''}>Col. 30% ($1.00)</option>
-                    <option value="1.50" ${pU==1.50?'selected':''}>Col. 50% ($1.50)</option>
-                    <option value="2.00" ${pU==2.00?'selected':''}>Col. 65% ($2.00)</option>
-                    <option value="2.50" ${pU==2.50?'selected':''}>Col. 85% ($2.50)</option>
-                    <option value="3.00" ${pU==3.00?'selected':''}>Col. 100% ($3.00)</option>
-                </select>
-                <button onclick="window.agregarImpAlCarrito('${id}', '${d.usuario}', ${d.paginas})" class="bg-green-600 text-white px-2 py-1 rounded-lg text-[10px] font-black">+ COBRAR</button>
-                <a href="${d.archivoURL}" target="_blank" class="bg-slate-900 text-white px-2 py-1 rounded-lg text-[10px] font-bold">VER</a>
-            </div></div>`;
-    });
 }
 
 function renderInv(snap) {
@@ -223,7 +229,7 @@ function renderInv(snap) {
         cont.innerHTML += `<div class="p-2 bg-slate-50 rounded-xl mb-1 flex justify-between items-center border">
             <span class="text-[10px] font-bold uppercase">${p.nombre} (${p.stock})</span>
             <div class="flex gap-1">
-                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 text-[10px] font-bold uppercase">QR</button>
+                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta})" class="text-indigo-500 text-[10px] font-bold uppercase px-2">QR</button>
                 <button onclick="window.agregarProdAlCarrito('${p.id}', '${p.nombre}', ${p.venta})" class="bg-slate-900 text-white px-3 py-1 rounded-lg">+</button>
             </div></div>`;
     });
@@ -242,7 +248,7 @@ function renderFinanzas(snap) {
         const gan = ing - inv;
         totalInv += inv; totalIng += ing;
         if(gan > 0) totalGan += gan;
-        tbody.innerHTML += `<tr class="border-b bg-white"><td class="p-4 uppercase font-bold">${p.nombre}</td><td class="p-4 text-center">$${inv.toFixed(2)}</td><td class="p-4 text-center">${p.ventasHistoricas || 0}</td><td class="p-4 text-center text-green-600">$${ing.toFixed(2)}</td><td class="p-4 text-center"><span class="px-2 py-1 rounded-full text-[8px] font-black ${ing >= inv ? 'bg-green-500 text-white':'bg-amber-100 text-amber-600'}">${ing >= inv ? 'OK':'...'}</span></td><td class="p-4 text-right font-black ${gan > 0 ? 'text-indigo-600':'text-slate-300'}">$${gan.toFixed(2)}</td></tr>`;
+        tbody.innerHTML += `<tr class="border-b bg-white text-left"><td class="p-4 uppercase font-bold">${p.nombre}</td><td class="p-4 text-center font-bold text-blue-600">$${inv.toFixed(2)}</td><td class="p-4 text-center font-bold">${p.ventasHistoricas || 0}</td><td class="p-4 text-center font-bold text-green-600">$${ing.toFixed(2)}</td><td class="p-4 text-center"><span class="px-2 py-1 rounded-full text-[8px] font-black ${ing >= inv ? 'bg-green-500 text-white':'bg-amber-100 text-amber-600'}">${ing >= inv ? 'OK':'...'}</span></td><td class="p-4 text-right font-black ${gan > 0 ? 'text-indigo-600':'text-slate-300'}">$${gan.toFixed(2)}</td></tr>`;
     });
     document.getElementById('fin-inversion-total').innerText = `$${totalInv.toFixed(2)}`;
     document.getElementById('fin-ingresos-totales').innerText = `$${totalIng.toFixed(2)}`;

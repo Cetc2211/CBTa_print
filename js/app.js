@@ -7,15 +7,22 @@ let archivo = null;
 const user = localStorage.getItem('nombre_usuario') || "";
 
 document.addEventListener('DOMContentLoaded', () => {
-    if (!user) ui.toggleModal('modal-registro', 'show');
-    else {
+    if (!user) {
+        ui.toggleModal('modal-registro', 'show');
+    } else {
         const isAdmin = user.toLowerCase().includes("cecilio") || user.toLowerCase().includes("danika landeros");
         if(document.getElementById('saludo')) document.getElementById('saludo').innerText = `Hola, ${user}`;
+        
         if (isAdmin) {
             ui.toggleModal('panel-admin', 'show');
             ui.toggleModal('btn-flotante-qr', 'show');
             db.escucharColaImpresion(renderCola);
-            db.escucharInventarioDB((snap) => { renderInv(snap); renderFinanzas(snap); });
+            db.escucharInventarioDB((snap) => {
+                try {
+                    renderInv(snap);
+                    renderFinanzas(snap);
+                } catch(err) { console.error("Error al renderizar tablas:", err); }
+            });
         } else {
             ui.toggleModal('panel-alumno', 'show');
             ui.toggleModal('btn-flotante-qr', 'show');
@@ -40,27 +47,55 @@ function setupEvents() {
         if(n) { localStorage.setItem('nombre_usuario', n); location.reload(); }
     });
 
-    // BOTÓN ENVIAR ALUMNO
-    const btnEnviar = document.getElementById('btn-enviar-archivo');
-    if (btnEnviar) {
-        btnEnviar.addEventListener('click', async () => {
-            if (!archivo) { alert("⚠️ Selecciona un archivo."); return; }
-            btnEnviar.disabled = true; btnEnviar.innerText = "⏳ SUBIENDO...";
-            const tipo = document.getElementById('alumno-imp').value;
-            const res = await db.enviarDocumentoNube({ 
-                usuario: user, archivo, paginas: parseInt(document.getElementById('alumno-pags').value) || 1, 
-                cobertura: saturacion, tipoImpresion: tipo 
-            });
-            if(res) ui.toggleModal('modal-exito', 'show');
-            else { alert("Error al subir"); btnEnviar.disabled = false; btnEnviar.innerText = "Enviar al Profr. Cecilio"; }
-        });
-    }
+    // Modales Navegación
+    document.getElementById('btn-abrir-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'show'));
+    document.getElementById('btn-cerrar-db')?.addEventListener('click', () => ui.toggleModal('modal-db', 'hide'));
+    document.getElementById('btn-abrir-finanzas')?.addEventListener('click', () => ui.toggleModal('modal-finanzas', 'show'));
+    document.getElementById('btn-cerrar-finanzas')?.addEventListener('click', () => ui.toggleModal('modal-finanzas', 'hide'));
+    document.getElementById('btn-flotante-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'show'));
+    document.getElementById('btn-cerrar-qr')?.addEventListener('click', () => ui.toggleModal('modal-qr', 'hide'));
+    document.getElementById('btn-cerrar-etiqueta')?.addEventListener('click', () => ui.toggleModal('modal-etiqueta', 'hide'));
 
-    // EVENTOS ADMIN
+    // Formulario Stock
+    document.getElementById('form-db')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('db-id').value;
+        const p = { 
+            nombre: document.getElementById('db-nombre').value.toUpperCase(), 
+            stock: parseInt(document.getElementById('db-stock').value) || 0, 
+            costo: parseFloat(document.getElementById('db-costo').value) || 0, 
+            venta: parseFloat(document.getElementById('db-venta').value) || 0 
+        };
+        if (id) {
+            if(await db.actualizarProducto(id, p)) { alert("ACTUALIZADO"); limpiarFormDB(); }
+        } else {
+            if(await db.guardarNuevoProducto(p)) { alert("GUARDADO"); e.target.reset(); }
+        }
+    });
+
+    // Scanner
+    document.getElementById('btn-abrir-scanner')?.addEventListener('click', () => {
+        ui.startScanner(async (text) => {
+            const p = await db.obtenerProductoPorID(text);
+            if(p) {
+                ui.stopScanner();
+                const op = confirm(`PROD: ${p.nombre}\n\n¿VENDER (Aceptar) o SURTIR (Cancelar)?`);
+                if(op) window.agregarProdAlCarrito(text, p.nombre, p.venta);
+                else {
+                    const cant = prompt(`¿Cuántas piezas entran?`, "1");
+                    if(cant) await db.sumarStockProducto(text, parseInt(cant), p.costo || 0);
+                }
+            }
+        });
+    });
+
+    document.getElementById('btn-cerrar-scanner')?.addEventListener('click', ui.stopScanner);
+
+    // Cobro Final
     document.getElementById('btn-finalizar')?.addEventListener('click', async () => {
         if(carrito.length === 0) return;
         await db.procesarCobroVenta(carrito);
-        carrito = []; renderCarrito(); alert("Cobro finalizado e historico guardado.");
+        carrito = []; renderCarrito(); alert("Venta finalizada");
     });
 }
 
@@ -70,13 +105,13 @@ function renderCola(snap) {
     cont.innerHTML = "";
     snap.forEach(docSnap => {
         const d = docSnap.data(); const id = docSnap.id;
-        let pU = (d.tipoImpresion === 'laser_bn') ? 0.50 : calcularPrecioUnitario('color', d.cobertura);
+        let pU = (d.tipoImpresion === 'laser_bn') ? 0.50 : calcularPrecioUnitario('color', d.cobertura || 0);
         cont.innerHTML += `<div class="p-3 bg-white border rounded-xl mb-2 shadow-sm border-l-4 ${d.tipoImpresion === 'laser_bn' ? 'border-slate-400':'border-indigo-500'}">
             <div class="flex justify-between items-center mb-1">
                 <b class="text-[10px] uppercase">${d.usuario}</b>
                 <button onclick="window.cancelarArchivo('${id}')" class="text-red-500 font-bold px-2">✕</button>
             </div>
-            <p class="text-[9px] text-slate-400 truncate mb-2">${d.archivo}</p>
+            <p class="text-[9px] text-slate-400 truncate mb-2">${d.archivo || 'Archivo'}</p>
             <div class="flex gap-1">
                 <select id="sel-${id}" class="text-[10px] bg-slate-50 border p-1 rounded font-bold flex-1">
                     <option value="0.50" ${pU==0.50?'selected':''}>B/N ($0.50)</option>
@@ -90,6 +125,42 @@ function renderCola(snap) {
                 <a href="${d.archivoURL}" target="_blank" class="bg-slate-900 text-white px-2 py-1 rounded-lg text-[9px] font-bold text-center flex items-center">VER</a>
             </div></div>`;
     });
+}
+
+function renderInv(snap) {
+    const cont = document.getElementById('lista-stock-rapido');
+    if(!cont) return;
+    cont.innerHTML = "";
+    const prods = [];
+    snap.forEach(docSnap => {
+        const p = docSnap.data(); p.id = docSnap.id; prods.push(p);
+        cont.innerHTML += `<div class="p-2 bg-slate-50 rounded-xl mb-1 flex justify-between items-center border">
+            <span class="text-[10px] font-bold uppercase">${p.nombre} (${p.stock || 0})</span>
+            <div class="flex gap-1">
+                <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta || 0})" class="text-indigo-500 text-[10px] font-bold px-2 uppercase">QR</button>
+                <button onclick="window.agregarProdAlCarrito('${p.id}', '${p.nombre}', ${p.venta || 0})" class="bg-slate-900 text-white px-3 py-1 rounded-lg">+</button>
+            </div></div>`;
+    });
+    ui.renderDBTable(prods, (id) => db.eliminarRegistro('inventario', id), window.prepararEdicion);
+}
+
+function renderFinanzas(snap) {
+    const tbody = document.getElementById('tabla-finanzas-body');
+    if(!tbody) return;
+    let totalInv = 0, totalIng = 0, totalGan = 0;
+    tbody.innerHTML = "";
+    snap.forEach(docSnap => {
+        const p = docSnap.data();
+        const inv = p.gastoAcumulado || ((p.stock || 0) * (p.costo || 0));
+        const ing = p.totalDia || 0;
+        const gan = ing - inv;
+        totalInv += inv; totalIng += ing;
+        if(gan > 0) totalGan += gan;
+        tbody.innerHTML += `<tr class="border-b bg-white"><td class="p-4 uppercase font-bold text-left">${p.nombre}</td><td class="p-4 text-center">$${inv.toFixed(2)}</td><td class="p-4 text-center">${p.ventasHistoricas || 0}</td><td class="p-4 text-center text-green-600 font-bold">$${ing.toFixed(2)}</td><td class="p-4 text-center"><span class="px-2 py-1 rounded-full text-[8px] font-black ${ing >= inv ? 'bg-green-500 text-white':'bg-amber-100 text-amber-600'}">${ing >= inv ? 'OK':'...'}</span></td><td class="p-4 text-right font-black ${gan > 0 ? 'text-indigo-600':'text-slate-300'}">$${gan.toFixed(2)}</td></tr>`;
+    });
+    document.getElementById('fin-inversion-total').innerText = `$${totalInv.toFixed(2)}`;
+    document.getElementById('fin-ingresos-totales').innerText = `$${totalIng.toFixed(2)}`;
+    document.getElementById('fin-utilidad-total').innerText = `$${totalGan.toFixed(2)}`;
 }
 
 // FUNCIONES GLOBALES
@@ -114,4 +185,35 @@ function renderCarrito() {
     });
     document.getElementById('total-carrito').innerText = `$${total.toFixed(2)}`;
 }
-// ... resto de funciones de renderInv y renderFinanzas se mantienen igual ...
+
+window.prepararEdicion = async (id) => {
+    const p = await db.obtenerProductoPorID(id);
+    if (p) {
+        document.getElementById('db-id').value = id;
+        document.getElementById('db-nombre').value = p.nombre;
+        document.getElementById('db-stock').value = p.stock;
+        document.getElementById('db-costo').value = p.costo;
+        document.getElementById('db-venta').value = p.venta;
+        const btn = document.getElementById('btn-guardar-prod');
+        btn.innerText = "Actualizar";
+        btn.classList.add('bg-amber-500');
+        document.getElementById('btn-cancelar-edicion').classList.remove('hidden');
+    }
+};
+
+function limpiarFormDB() {
+    document.getElementById('db-id').value = "";
+    document.getElementById('form-db').reset();
+    const btn = document.getElementById('btn-guardar-prod');
+    btn.innerText = "Añadir Producto";
+    btn.classList.remove('bg-amber-500');
+    document.getElementById('btn-cancelar-edicion').classList.add('hidden');
+}
+
+window.verEtiqueta = (id, nombre, precio) => {
+    document.getElementById('etiqueta-nombre').innerText = nombre;
+    document.getElementById('etiqueta-precio').innerText = `$${precio.toFixed(2)}`;
+    const qrCont = document.getElementById('etiqueta-qr');
+    if(qrCont) { qrCont.innerHTML = ""; new QRCode(qrCont, { text: id, width: 150, height: 150 }); }
+    ui.toggleModal('modal-etiqueta', 'show');
+};

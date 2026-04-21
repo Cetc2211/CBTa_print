@@ -9,14 +9,9 @@ export const enviarDocumentoNube = async (datos) => {
         const storageRef = ref(storage, `impresiones/${Date.now()}_${nombreLimpio}`);
         const snapshot = await uploadBytes(storageRef, datos.archivo);
         const url = await getDownloadURL(snapshot.ref);
-        
         return await addDoc(collection(db, "cola_impresion"), {
-            usuario: datos.usuario, 
-            archivo: datos.archivo.name, 
-            archivoURL: url,
-            paginas: datos.paginas, 
-            cobertura: datos.cobertura, 
-            tipoImpresion: datos.tipoImpresion,
+            usuario: datos.usuario, archivo: datos.archivo.name, archivoURL: url,
+            paginas: datos.paginas, cobertura: datos.cobertura, tipoImpresion: datos.tipoImpresion,
             fecha: serverTimestamp()
         });
     } catch(e) { return null; }
@@ -39,10 +34,7 @@ export const actualizarProducto = async (id, datos) => {
 };
 
 export const sumarStockProducto = async (id, cantidad, costoActual) => {
-    return await updateDoc(doc(db, "inventario", id), { 
-        stock: increment(cantidad),
-        gastoAcumulado: increment(cantidad * costoActual)
-    });
+    return await updateDoc(doc(db, "inventario", id), { stock: increment(cantidad), gastoAcumulado: increment(cantidad * costoActual) });
 };
 
 export const obtenerProductoPorID = async (id) => {
@@ -52,22 +44,18 @@ export const obtenerProductoPorID = async (id) => {
     } catch(e) { return null; }
 };
 
-// NUEVA LÓGICA DE COBRO CON HISTORIAL
+// PROCESAR COBRO CON HISTORIAL
 export const procesarCobroVenta = async (carrito) => {
     for (const item of carrito) {
         if (item.tipo === 'producto') {
-            await updateDoc(doc(db, "inventario", item.id), { 
-                stock: increment(-1), 
-                totalDia: increment(item.precio), 
-                ventasHistoricas: increment(1) 
-            });
+            await updateDoc(doc(db, "inventario", item.id), { stock: increment(-1), totalDia: increment(item.precio), ventasHistoricas: increment(1) });
         } else {
-            // REGISTRAMOS LA IMPRESIÓN EN INGRESOS ANTES DE BORRARLA
-            await addDoc(collection(db, "ingresos_servicios"), { 
-                monto: item.precio, 
-                fecha: serverTimestamp(), 
-                detalle: item.nombre,
-                tipo: "IMPRESION"
+            // Guardamos el ingreso antes de borrar el archivo de la cola
+            await addDoc(collection(db, "ingresos_servicios"), {
+                monto: item.precio,
+                usuario: item.nombre, // Trae "Imp: Nombre del Alumno"
+                tipo: "IMPRESION",
+                fecha: serverTimestamp()
             });
             await deleteDoc(doc(db, "cola_impresion", item.id));
         }

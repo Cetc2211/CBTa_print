@@ -14,7 +14,7 @@ export const enviarDocumentoNube = async (datos) => {
             paginas: datos.paginas, cobertura: datos.cobertura, tipoImpresion: datos.tipoImpresion,
             fecha: serverTimestamp()
         });
-    } catch(e) { return null; }
+    } catch(e) { console.error(e); return null; }
 };
 
 export const escucharColaImpresion = (callback) => onSnapshot(query(collection(db, "cola_impresion"), orderBy("fecha", "desc")), callback);
@@ -44,19 +44,12 @@ export const obtenerProductoPorID = async (id) => {
     } catch(e) { return null; }
 };
 
-// PROCESAR COBRO CON HISTORIAL
 export const procesarCobroVenta = async (carrito) => {
     for (const item of carrito) {
         if (item.tipo === 'producto') {
             await updateDoc(doc(db, "inventario", item.id), { stock: increment(-1), totalDia: increment(item.precio), ventasHistoricas: increment(1) });
         } else {
-            // Guardamos el ingreso antes de borrar el archivo de la cola
-            await addDoc(collection(db, "ingresos_servicios"), {
-                monto: item.precio,
-                usuario: item.nombre, // Trae "Imp: Nombre del Alumno"
-                tipo: "IMPRESION",
-                fecha: serverTimestamp()
-            });
+            await addDoc(collection(db, "ingresos_servicios"), { monto: item.precio, usuario: item.nombre, tipo: "IMPRESION", fecha: serverTimestamp() });
             await deleteDoc(doc(db, "cola_impresion", item.id));
         }
     }

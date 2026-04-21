@@ -1,6 +1,12 @@
-import { collection, addDoc, serverTimestamp, onSnapshot, deleteDoc, doc, updateDoc, increment, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, addDoc, serverTimestamp, onSnapshot, deleteDoc, doc, updateDoc, increment, getDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
+
+// Bitácora histórica: Los últimos 50 cobros de impresoras
+export const escucharIngresosServicios = (callback) => {
+    const q = query(collection(db, "ingresos_servicios"), orderBy("fecha", "desc"), limit(50));
+    return onSnapshot(q, callback);
+};
 
 export const enviarDocumentoNube = async (datos) => {
     try {
@@ -14,7 +20,7 @@ export const enviarDocumentoNube = async (datos) => {
             paginas: datos.paginas, cobertura: datos.cobertura, tipoImpresion: datos.tipoImpresion,
             fecha: serverTimestamp()
         });
-    } catch(e) { console.error(e); return null; }
+    } catch(e) { return null; }
 };
 
 export const escucharColaImpresion = (callback) => onSnapshot(query(collection(db, "cola_impresion"), orderBy("fecha", "desc")), callback);
@@ -34,7 +40,7 @@ export const actualizarProducto = async (id, datos) => {
 };
 
 export const sumarStockProducto = async (id, cantidad, costoActual) => {
-    return await updateDoc(doc(db, "inventario", id), { stock: increment(cantidad), gastoAcumulado: increment(cantidad * costoActual) });
+    return await updateDoc(doc(db, "inventario", id), { stock: increment(cantidad), gastoAcumulado: increment(cantidad * (costoActual || 0)) });
 };
 
 export const obtenerProductoPorID = async (id) => {
@@ -44,12 +50,20 @@ export const obtenerProductoPorID = async (id) => {
     } catch(e) { return null; }
 };
 
+// COBRO FINAL: Guarda productos en stock e impresiones en bitácora
 export const procesarCobroVenta = async (carrito) => {
     for (const item of carrito) {
         if (item.tipo === 'producto') {
             await updateDoc(doc(db, "inventario", item.id), { stock: increment(-1), totalDia: increment(item.precio), ventasHistoricas: increment(1) });
         } else {
-            await addDoc(collection(db, "ingresos_servicios"), { monto: item.precio, usuario: item.nombre, tipo: "IMPRESION", fecha: serverTimestamp() });
+            // Guardamos el detalle histórico de la impresión antes de borrar el archivo
+            await addDoc(collection(db, "ingresos_servicios"), {
+                monto: item.precio,
+                usuario: item.usuarioAlumno,
+                paginas: item.numPags,
+                servicio: item.labelServicio, // Ej: "Láser B/N"
+                fecha: serverTimestamp()
+            });
             await deleteDoc(doc(db, "cola_impresion", item.id));
         }
     }

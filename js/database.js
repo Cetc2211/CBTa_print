@@ -7,7 +7,6 @@ export const enviarDocumentoNube = async (datos) => {
         if (!datos.archivo) return null;
         const nombreLimpio = datos.archivo.name.replace(/[^a-zA-Z0-9.]/g, '_');
         const storageRef = ref(storage, `impresiones/${Date.now()}_${nombreLimpio}`);
-        
         const snapshot = await uploadBytes(storageRef, datos.archivo);
         const url = await getDownloadURL(snapshot.ref);
         
@@ -17,13 +16,10 @@ export const enviarDocumentoNube = async (datos) => {
             archivoURL: url,
             paginas: datos.paginas, 
             cobertura: datos.cobertura, 
-            tipoImpresion: datos.tipoImpresion, // <-- Guarda la elección del alumno
+            tipoImpresion: datos.tipoImpresion,
             fecha: serverTimestamp()
         });
-    } catch(e) { 
-        console.error("Error en subida:", e); 
-        return null; 
-    }
+    } catch(e) { return null; }
 };
 
 export const escucharColaImpresion = (callback) => onSnapshot(query(collection(db, "cola_impresion"), orderBy("fecha", "desc")), callback);
@@ -56,12 +52,23 @@ export const obtenerProductoPorID = async (id) => {
     } catch(e) { return null; }
 };
 
+// NUEVA LÓGICA DE COBRO CON HISTORIAL
 export const procesarCobroVenta = async (carrito) => {
     for (const item of carrito) {
         if (item.tipo === 'producto') {
-            await updateDoc(doc(db, "inventario", item.id), { stock: increment(-1), totalDia: increment(item.precio), ventasHistoricas: increment(1) });
+            await updateDoc(doc(db, "inventario", item.id), { 
+                stock: increment(-1), 
+                totalDia: increment(item.precio), 
+                ventasHistoricas: increment(1) 
+            });
         } else {
-            await addDoc(collection(db, "ingresos_servicios"), { monto: item.precio, fecha: serverTimestamp(), usuario: item.nombre });
+            // REGISTRAMOS LA IMPRESIÓN EN INGRESOS ANTES DE BORRARLA
+            await addDoc(collection(db, "ingresos_servicios"), { 
+                monto: item.precio, 
+                fecha: serverTimestamp(), 
+                detalle: item.nombre,
+                tipo: "IMPRESION"
+            });
             await deleteDoc(doc(db, "cola_impresion", item.id));
         }
     }

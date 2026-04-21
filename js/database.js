@@ -4,6 +4,7 @@ import { db, storage } from "./firebase-config.js";
 
 export const enviarDocumentoNube = async (datos) => {
     try {
+        if (!datos.archivo) return null;
         const storageRef = ref(storage, `impresiones/${Date.now()}_${datos.archivo.name}`);
         const snapshot = await uploadBytes(storageRef, datos.archivo);
         const url = await getDownloadURL(snapshot.ref);
@@ -11,7 +12,10 @@ export const enviarDocumentoNube = async (datos) => {
             usuario: datos.usuario, archivo: datos.archivo.name, archivoURL: url,
             paginas: datos.paginas, cobertura: datos.cobertura, fecha: serverTimestamp()
         });
-    } catch(e) { console.error(e); return null; }
+    } catch(e) { 
+        console.error("Error en subida:", e); 
+        return null; 
+    }
 };
 
 export const escucharColaImpresion = (callback) => onSnapshot(query(collection(db, "cola_impresion"), orderBy("fecha", "desc")), callback);
@@ -20,15 +24,14 @@ export const escucharInventarioDB = (callback) => onSnapshot(collection(db, "inv
 export const guardarNuevoProducto = async (p) => {
     try {
         return await addDoc(collection(db, "inventario"), { ...p, totalDia: 0, ventasHistoricas: 0, gastoAcumulado: (p.stock * p.costo) });
-    } catch(e) { alert("Error Firebase: " + e.message); return null; }
+    } catch(e) { return null; }
 };
 
 export const actualizarProducto = async (id, datos) => {
     try {
-        const docRef = doc(db, "inventario", id);
-        await updateDoc(docRef, { ...datos, gastoAcumulado: (datos.stock * datos.costo) });
+        await updateDoc(doc(db, "inventario", id), { ...datos, gastoAcumulado: (datos.stock * datos.costo) });
         return true;
-    } catch (e) { alert("Error al actualizar: " + e.message); return false; }
+    } catch (e) { return false; }
 };
 
 export const sumarStockProducto = async (id, cantidad, costoActual) => {
@@ -48,11 +51,7 @@ export const obtenerProductoPorID = async (id) => {
 export const procesarCobroVenta = async (carrito) => {
     for (const item of carrito) {
         if (item.tipo === 'producto') {
-            await updateDoc(doc(db, "inventario", item.id), { 
-                stock: increment(-1), 
-                totalDia: increment(item.precio),
-                ventasHistoricas: increment(1)
-            });
+            await updateDoc(doc(db, "inventario", item.id), { stock: increment(-1), totalDia: increment(item.precio), ventasHistoricas: increment(1) });
         } else {
             await addDoc(collection(db, "ingresos_servicios"), { monto: item.precio, fecha: serverTimestamp(), usuario: item.nombre });
             await deleteDoc(doc(db, "cola_impresion", item.id));

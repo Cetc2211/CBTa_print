@@ -31,11 +31,9 @@ export const stopScanner = async () => {
     if (el) el.classList.add('hidden');
 };
 
-// ESTA FUNCIÓN ES LA QUE DIBUJA LA TABLA EN EL MODAL DE STOCK
 export const renderDBTable = (prods) => {
     const tbody = document.getElementById('tabla-db-body');
     if (!tbody) return;
-    
     tbody.innerHTML = prods.map(p => `
         <tr class="border-b hover:bg-slate-50 transition-colors">
             <td class="p-3 font-bold uppercase text-left text-slate-700">${p.nombre}</td>
@@ -44,9 +42,9 @@ export const renderDBTable = (prods) => {
             <td class="p-3 text-center text-green-600 font-bold">$${(p.venta || 0).toFixed(2)}</td>
             <td class="p-3 text-right">
                 <div class="flex gap-2 justify-end">
-                    <button onclick="window.prepararEdicion('${p.id}')" class="bg-amber-100 text-amber-600 px-3 py-1 rounded-lg font-black uppercase text-[9px] hover:bg-amber-200">Editar</button>
-                    <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta || 0})" class="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-lg font-black uppercase text-[9px] hover:bg-indigo-200">QR</button>
-                    <button onclick="window.eliminarProducto('${p.id}')" class="bg-red-100 text-red-500 px-3 py-1 rounded-lg font-bold text-lg hover:bg-red-200">✕</button>
+                    <button onclick="window.prepararEdicion('${p.id}')" class="bg-amber-100 text-amber-600 px-3 py-1 rounded-lg font-black uppercase text-[9px]">Editar</button>
+                    <button onclick="window.verEtiqueta('${p.id}', '${p.nombre}', ${p.venta || 0})" class="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-lg font-black uppercase text-[9px]">QR</button>
+                    <button onclick="window.eliminarProducto('${p.id}')" class="bg-red-100 text-red-500 px-3 py-1 rounded-lg font-bold text-lg">✕</button>
                 </div>
             </td>
         </tr>`).join("");

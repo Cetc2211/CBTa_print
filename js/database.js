@@ -39,7 +39,9 @@ export const actualizarProducto = async (id, datos) => {
 };
 
 export const sumarStockProducto = async (id, cantidad, costoActual) => {
-    return await updateDoc(doc(db, "inventario", id), { stock: increment(cantidad), gastoAcumulado: increment(cantidad * (costoActual || 0)) });
+    try {
+        return await updateDoc(doc(db, "inventario", id), { stock: increment(cantidad), gastoAcumulado: increment(cantidad * (costoActual || 0)) });
+    } catch(e) { return null; }
 };
 
 export const obtenerProductoPorID = async (id) => {

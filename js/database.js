@@ -2,7 +2,6 @@ import { collection, addDoc, serverTimestamp, onSnapshot, deleteDoc, doc, update
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
 
-// Bitácora histórica: Los últimos 50 cobros de impresoras
 export const escucharIngresosServicios = (callback) => {
     const q = query(collection(db, "ingresos_servicios"), orderBy("fecha", "desc"), limit(50));
     return onSnapshot(q, callback);
@@ -50,18 +49,16 @@ export const obtenerProductoPorID = async (id) => {
     } catch(e) { return null; }
 };
 
-// COBRO FINAL: Guarda productos en stock e impresiones en bitácora
 export const procesarCobroVenta = async (carrito) => {
     for (const item of carrito) {
         if (item.tipo === 'producto') {
             await updateDoc(doc(db, "inventario", item.id), { stock: increment(-1), totalDia: increment(item.precio), ventasHistoricas: increment(1) });
         } else {
-            // Guardamos el detalle histórico de la impresión antes de borrar el archivo
             await addDoc(collection(db, "ingresos_servicios"), {
                 monto: item.precio,
                 usuario: item.usuarioAlumno,
                 paginas: item.numPags,
-                servicio: item.labelServicio, // Ej: "Láser B/N"
+                servicio: item.labelServicio,
                 fecha: serverTimestamp()
             });
             await deleteDoc(doc(db, "cola_impresion", item.id));

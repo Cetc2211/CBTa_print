@@ -12,40 +12,34 @@ let scanner = null;
 
 export const startScanner = async (onSuccess) => {
     const el = document.getElementById('modal-scanner');
-    el.classList.remove('hidden');
+    if (el) el.classList.remove('hidden');
     
-    // Si ya hay un scanner activo, intentamos detenerlo antes de empezar otro
     if (scanner) {
-        try { await scanner.stop(); } catch(e) { console.warn("Scanner ya detenido"); }
+        try { await scanner.stop(); } catch(e) {}
     }
 
     scanner = new Html5Qrcode("reader");
-    const config = { fps: 10, qrbox: 250 };
-
     try {
-        await scanner.start({ facingMode: "environment" }, config, onSuccess);
+        await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onSuccess);
     } catch (e) {
-        alert("Error de cámara: Asegúrate de dar permisos en tu navegador.");
-        el.classList.add('hidden');
+        alert("Error de cámara: Activa los permisos.");
+        if (el) el.classList.add('hidden');
     }
 };
 
 export const stopScanner = async () => {
     const el = document.getElementById('modal-scanner');
-    
     if (scanner) {
         try {
             if (scanner.isScanning) {
                 await scanner.stop();
             }
         } catch (e) {
-            console.error("Error al detener la cámara:", e);
+            console.warn("Scanner detenido con advertencia");
         } finally {
-            scanner = null; // Limpiamos la instancia
+            scanner = null;
         }
     }
-    
-    // Forzamos la ocultación del modal pase lo que pase con la cámara
     if (el) el.classList.add('hidden');
 };
 
@@ -56,7 +50,7 @@ export const renderDBTable = (prods, onDelete, onEdit) => {
         <tr class="border-b hover:bg-slate-50">
             <td class="p-3 font-bold uppercase text-left">${p.nombre}</td>
             <td class="p-3 text-center">${p.stock || 0}</td>
-            <td class="p-3 text-center text-red-500 font-bold">$${(p.costo || 0).toFixed(2)}</td>
+            <td class="p-3 text-center text-red-500">$${(p.costo || 0).toFixed(2)}</td>
             <td class="p-3 text-center text-green-600 font-bold">$${(p.venta || 0).toFixed(2)}</td>
             <td class="p-3 text-right">
                 <div class="flex gap-2 justify-end">
@@ -66,6 +60,6 @@ export const renderDBTable = (prods, onDelete, onEdit) => {
                 </div>
             </td>
         </tr>`).join("");
-    window.eliminarProducto = (id) => { if(confirm("¿Eliminar?")) onDelete(id); };
+    window.eliminarProducto = (id) => { if(confirm("¿Eliminar artículo definitivamente?")) onDelete(id); };
     window.prepararEdicion = onEdit;
 };

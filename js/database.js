@@ -1,6 +1,10 @@
-import { collection, addDoc, serverTimestamp, onSnapshot, deleteDoc, doc, updateDoc, increment, getDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { 
+    collection, addDoc, serverTimestamp, onSnapshot, deleteDoc, 
+    doc, updateDoc, increment, getDoc, query, orderBy, limit 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-import { db, storage } from "./firebase-config.js";
+// IMPORTANTE: Asegúrate de que 'auth' esté exportado en tu firebase-config.js
+import { db, storage, auth } from "./firebase-config.js";
 
 export const escucharIngresosServicios = (callback) => {
     const q = query(collection(db, "ingresos_servicios"), orderBy("fecha", "desc"), limit(50));
@@ -51,16 +55,47 @@ export const obtenerProductoPorID = async (id) => {
     } catch(e) { return null; }
 };
 
+/**
+ * FUNCIÓN ACTUALIZADA: procesarCobroVenta
+ * Ahora registra qué administrador realizó la operación.
+ */
 export const procesarCobroVenta = async (carrito) => {
+    // 1. Obtenemos al usuario (administrador) actual
+    const adminActual = auth.currentUser;
+    const vendedorNombre = adminActual?.displayName || adminActual?.email || "Admin Desconocido";
+    const vendedorId = adminActual?.uid || "no-auth";
+
     for (const item of carrito) {
         if (item.tipo === 'producto') {
-            await updateDoc(doc(db, "inventario", item.id), { stock: increment(-1), totalDia: increment(item.precio), ventasHistoricas: increment(1) });
+            // Actualización de stock en inventario
+            await updateDoc(doc(db, "inventario", item.id), { 
+                stock: increment(-1), 
+                totalDia: increment(item.precio), 
+                ventasHistoricas: increment(1) 
+            });
+
+            // OPCIONAL: Registrar la venta del producto en una colección histórica
+            // para saber quién vendió cada unidad física.
+            await addDoc(collection(db, "historial_ventas"), {
+                tipo: "producto",
+                nombre: item.labelServicio || "Producto",
+                monto: item.precio,
+                vendedor: vendedorNombre,
+                vendedorId: vendedorId,
+                fecha: serverTimestamp()
+            });
+
         } else {
+            // Registro de servicios (Impresiones, etc)
             await addDoc(collection(db, "ingresos_servicios"), {
                 monto: item.precio,
                 usuario: item.usuarioAlumno,
                 paginas: item.numPags,
                 servicio: item.labelServicio,
+                // --- REGISTRO DEL VENDEDOR ---
+                vendedor: vendedorNombre,
+                vendedorId: vendedorId,
+                // -----------------------------
                 fecha: serverTimestamp()
             });
             await deleteDoc(doc(db, "cola_impresion", item.id));

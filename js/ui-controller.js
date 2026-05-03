@@ -5,7 +5,12 @@ export const toggleModal = (id, action) => {
 
 export const setupAccessQR = (url) => {
     const cont = document.getElementById("qrcode");
-    if (cont) { cont.innerHTML = ""; new QRCode(cont, { text: url, width: 200, height: 200 }); }
+    if (cont) { 
+        cont.innerHTML = ""; 
+        try {
+            new QRCode(cont, { text: url, width: 200, height: 200 }); 
+        } catch(e) { console.error("Error generando QR", e); }
+    }
 };
 
 let scanner = null;
@@ -14,10 +19,13 @@ export const startScanner = async (onSuccess) => {
     const el = document.getElementById('modal-scanner');
     if (el) el.classList.remove('hidden');
     if (scanner) { try { await scanner.stop(); } catch(e) {} }
+    
+    // @ts-ignore
     scanner = new Html5Qrcode("reader");
     try {
         await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onSuccess);
     } catch (e) {
+        console.error(e);
         alert("Error de cámara: Activa los permisos.");
         if (el) el.classList.add('hidden');
     }
@@ -34,6 +42,10 @@ export const stopScanner = async () => {
 export const renderDBTable = (prods) => {
     const tbody = document.getElementById('tabla-db-body');
     if (!tbody) return;
+    if (!prods || prods.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-5 text-center text-gray-400">No hay productos en inventario</td></tr>`;
+        return;
+    }
     tbody.innerHTML = prods.map(p => `
         <tr class="border-b hover:bg-slate-50 transition-colors">
             <td class="p-3 font-bold uppercase text-left text-slate-700">${p.nombre}</td>

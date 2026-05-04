@@ -3,26 +3,45 @@ export const toggleModal = (id, action) => {
     if (el) action === 'show' ? el.classList.remove('hidden') : el.classList.add('hidden');
 };
 
-export const renderDBTable = (prods) => {
-    const tbody = document.getElementById('tabla-db-body');
-    if (!tbody) return;
-    
-    if (!prods || prods.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="p-5 text-center text-gray-400 font-bold uppercase text-[10px]">Sin productos</td></tr>`;
-        return;
-    }
+export const renderColaImpresion = (docs) => {
+    const lista = document.getElementById('lista-impresiones');
+    if (!lista) return;
 
-    tbody.innerHTML = prods.map(p => `
-        <tr class="border-b hover:bg-slate-50 transition-colors">
-            <td class="p-3 font-bold uppercase text-left text-slate-700">${p.nombre}</td>
-            <td class="p-3 text-center font-bold">${p.stock || 0}</td>
-            <td class="p-3 text-center text-red-500 font-bold">$${(p.costo || 0).toFixed(2)}</td>
-            <td class="p-3 text-center text-green-600 font-bold">$${(p.venta || 0).toFixed(2)}</td>
-            <td class="p-3 text-right">
-                <div class="flex gap-2 justify-end">
-                    <button onclick="window.prepararEdicion('${p.id}')" class="bg-amber-100 text-amber-600 px-3 py-1 rounded-lg font-black uppercase text-[9px]">Editar</button>
-                    <button onclick="window.eliminarProducto('${p.id}')" class="bg-red-100 text-red-500 px-3 py-1 rounded-lg font-bold text-lg">✕</button>
-                </div>
-            </td>
-        </tr>`).join("");
+    lista.innerHTML = docs.map(doc => {
+        const precio = doc.tipoImpresion === 'laser_bn' ? 0.5 : 2.0;
+        const total = (doc.paginas * precio).toFixed(2);
+        const label = doc.tipoImpresion === 'laser_bn' ? 'HP LÁSER B/N' : 'SMART TANK COLOR';
+
+        return `
+        <div class="bg-slate-50 p-4 rounded-[1.5rem] border-2 border-slate-100 flex justify-between items-center">
+            <div class="max-w-[60%]">
+                <p class="text-[10px] font-black uppercase truncate text-indigo-600">${doc.archivo}</p>
+                <p class="text-[9px] font-bold text-slate-800">${doc.usuario}</p>
+                <p class="text-[8px] text-slate-400 font-bold uppercase">${label} • ${doc.paginas} PÁGS</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="${doc.archivoURL}" target="_blank" class="bg-white border p-2 rounded-xl shadow-sm">👁️</a>
+                <button onclick="window.agregarAlCarrito('${doc.id}', 'IMP. ${doc.paginas} PÁGS', ${total}, 'impresion', {usuarioAlumno: '${doc.usuario}', numPags: ${doc.paginas}, labelServicio: '${label}'})" 
+                        class="bg-indigo-600 text-white px-3 py-2 rounded-xl font-black text-[9px] uppercase shadow-md active:scale-95">
+                    $${total}
+                </button>
+            </div>
+        </div>`;
+    }).join("");
+};
+
+export const renderStockRapido = (prods) => {
+    const lista = document.getElementById('lista-stock-rapido');
+    if (!lista) return;
+
+    lista.innerHTML = prods.map(p => `
+        <button onclick="window.agregarAlCarrito('${p.id}', '${p.nombre}', ${p.venta}, 'producto')" 
+                class="w-full bg-white p-3 rounded-2xl border mb-1 flex justify-between items-center hover:border-indigo-500 transition-all text-left group">
+            <div class="flex flex-col">
+                <span class="text-[10px] font-black uppercase group-hover:text-indigo-600">${p.nombre}</span>
+                <span class="text-[8px] font-bold ${p.stock < 5 ? 'text-red-500' : 'text-slate-400'} uppercase">Stock: ${p.stock}</span>
+            </div>
+            <span class="font-black text-xs text-slate-900">$${p.venta.toFixed(2)}</span>
+        </button>
+    `).join("");
 };

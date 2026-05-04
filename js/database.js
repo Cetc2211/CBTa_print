@@ -3,7 +3,6 @@ import {
     doc, updateDoc, increment, getDoc, query, orderBy, limit 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-// Volvemos a la configuración simple
 import { db, storage } from "./firebase-config.js";
 
 export const escucharIngresosServicios = (callback) => {
@@ -31,21 +30,24 @@ export const escucharInventarioDB = (callback) => onSnapshot(collection(db, "inv
 
 export const guardarNuevoProducto = async (p) => {
     try {
-        return await addDoc(collection(db, "inventario"), { ...p, totalDia: 0, ventasHistoricas: 0, gastoAcumulado: (p.stock * p.costo) });
+        return await addDoc(collection(db, "inventario"), { 
+            ...p, 
+            totalDia: 0, 
+            ventasHistoricas: 0, 
+            gastoAcumulado: (Number(p.stock) * Number(p.costo)) 
+        });
     } catch(e) { return null; }
 };
 
 export const actualizarProducto = async (id, datos) => {
     try {
-        await updateDoc(doc(db, "inventario", id), { ...datos, gastoAcumulado: (datos.stock * datos.costo) });
+        const docRef = doc(db, "inventario", id);
+        await updateDoc(docRef, { 
+            ...datos, 
+            gastoAcumulado: (Number(datos.stock) * Number(datos.costo)) 
+        });
         return true;
     } catch (e) { return false; }
-};
-
-export const sumarStockProducto = async (id, cantidad, costoActual) => {
-    try {
-        return await updateDoc(doc(db, "inventario", id), { stock: increment(cantidad), gastoAcumulado: increment(cantidad * (costoActual || 0)) });
-    } catch(e) { return null; }
 };
 
 export const obtenerProductoPorID = async (id) => {
@@ -55,7 +57,6 @@ export const obtenerProductoPorID = async (id) => {
     } catch(e) { return null; }
 };
 
-// Versión simplificada sin requerir Auth (Evita Error 403)
 export const procesarCobroVenta = async (carrito) => {
     for (const item of carrito) {
         if (item.tipo === 'producto') {

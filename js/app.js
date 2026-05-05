@@ -213,6 +213,15 @@ window.go = (s) => {
   if(s==='venta')     { renderProdList(); renderCart(); renderColaVenta(); }
   if(s==='cola')      renderColaFull();
 };
+window.eliminarDeCola = async (id, nombre) => {
+  if(!confirm(`¿Eliminar "${nombre}" de la cola sin cobrar?`)) return;
+  try {
+    await eliminarRegistro('cola_impresion', id);
+    toast('Eliminado de la cola','ok');
+  } catch(e){
+    toast('Error: '+e.message,'er');
+  }
+};
 
 // ═══════════════════════════════════════════════════════════════════
 // DASHBOARD
@@ -358,6 +367,11 @@ function renderColaFull(){
           onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas},'${label}');go('venta')">
           🛒 Cobrar $${total}
         </button>
+         <button class="btn br bsm wf" style="justify-content:center"
+          onclick="eliminarDeCola('${doc.id}','${doc.archivo||'archivo'}')">
+          🗑️ Eliminar sin cobrar
+        </button>
+
       </div>
     </div>`;
   }).join('');

@@ -122,9 +122,22 @@ document.getElementById('login-pass')?.addEventListener('keydown', e=>{
 });
 
 function verificarSesion(){
-  const user = localStorage.getItem('usuario_cbta');
+  const params  = new URLSearchParams(window.location.search);
+  const destino = params.get('destino');
+  const user    = localStorage.getItem('usuario_cbta');
+
   if(!user){
-    showScreen('scr-login');
+    // Si viene con ?destino=impresion mostrar login alumno directamente
+    if(destino === 'impresion'){
+      showScreen('scr-login');
+      // Preseleccionar rol alumno
+      const btnAlumno = document.querySelector('.rbtn[onclick*="alumno"]');
+      if(btnAlumno) btnAlumno.click();
+    } else {
+      // Redirigir a pantalla de bienvenida
+      window.location.replace('/bienvenida');
+    }
+    return;
   } else if(ADMINS[user]){
     mostrarAdmin(user);
   } else {

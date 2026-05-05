@@ -943,6 +943,42 @@ window.agregarAlCarritoImpresion = window.addImpToCart;
 // ═══════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════
+window.abrirImpresionManual = () => {
+  document.getElementById('ov-imp-manual').classList.add('on');
+  document.getElementById('im-paginas').value='';
+  document.getElementById('im-usuario').value='';
+  document.getElementById('im-tipo').value='laser_bn';
+  calcularManual();
+};
+
+window.calcularManual = () => {
+  const pags  = parseInt(document.getElementById('im-paginas')?.value)||0;
+  const tipo  = document.getElementById('im-tipo')?.value||'laser_bn';
+  const total = pags*(PRECIOS[tipo]||0.5);
+  const el    = document.getElementById('im-total');
+  if(el) el.textContent=`$${total.toFixed(2)}`;
+};
+
+window.agregarImpresionManual = () => {
+  const pags    = parseInt(document.getElementById('im-paginas').value)||0;
+  const tipo    = document.getElementById('im-tipo').value;
+  const usuario = document.getElementById('im-usuario').value.trim()||'Presencial';
+  if(pags<=0){ toast('Ingrese número de páginas','er'); return; }
+  const precio  = pags*(PRECIOS[tipo]||0.5);
+  const label   = LABELS[tipo]||'B&N';
+  carrito.push({
+    id:'manual-'+Date.now(),
+    nombre:`🖨️ Impresión ${pags} págs (${label})`,
+    precio, tipo:'impresion',
+    usuarioAlumno:usuario,
+    numPags:pags, labelServicio:label, esManual:true,
+  });
+  renderCart();
+  closeModal('ov-imp-manual');
+  go('venta');
+  toast(`✓ Impresión manual — $${precio.toFixed(2)}`,'ok');
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   setDate();
   setInterval(setDate, 60000);

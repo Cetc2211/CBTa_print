@@ -256,16 +256,27 @@ tbody tr:hover{background:var(--paper)}
     </div>
 
     <div id="role-select">
-      <p style="font-size:.78rem;color:var(--ink3);margin-bottom:12px;font-weight:600">¿Quién ingresa?</p>
-      <button class="rbtn" onclick="selRole(this,'admin')">
-        <span class="ric">👨‍🏫</span>
-        <div><h3>Profr. Cecilio</h3><p>Panel administrativo completo</p></div>
-      </button>
-      <button class="rbtn" onclick="selRole(this,'alumno')">
-        <span class="ric">🎒</span>
-        <div><h3>Alumno</h3><p>Enviar archivo para impresión</p></div>
-      </button>
-    </div>
+  <p style="font-size:.78rem;color:var(--ink3);margin-bottom:12px;font-weight:600">¿Quién ingresa?</p>
+  <button class="rbtn" onclick="selRole(this,'admin')">
+    <span class="ric">👨‍🏫</span>
+    <div><h3>Administrador</h3><p>Profr. Cecilio o Danika</p></div>
+  </button>
+  <button class="rbtn" onclick="selRole(this,'alumno')">
+    <span class="ric">🎒</span>
+    <div><h3>Alumno</h3><p>Enviar archivo para impresión</p></div>
+  </button>
+</div>
+
+<div id="login-form" style="display:none">
+  <p id="login-label" style="font-size:.82rem;font-weight:600;margin-bottom:10px;color:var(--ink2)"></p>
+  <input class="linp" type="text" id="login-nombre" placeholder="Ingrese su nombre…" autocomplete="off">
+  <div id="login-pass-wrap" style="display:none">
+    <input class="linp" type="password" id="login-pass" placeholder="Contraseña…" autocomplete="off">
+  </div>
+  <button class="lbtn" onclick="entrar()">Entrar →</button>
+  <button onclick="resetLogin()" style="display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--ink3);font-size:.78rem;cursor:pointer;font-family:var(--f)">← Volver</button>
+</div>
+
 
     <div id="login-form" style="display:none">
       <p id="login-label" style="font-size:.82rem;font-weight:600;margin-bottom:10px;color:var(--ink2)"></p>

@@ -263,34 +263,27 @@ tbody tr:hover{background:var(--paper)}
     </div>
 
     <div id="role-select">
-  <p style="font-size:.78rem;color:var(--ink3);margin-bottom:12px;font-weight:600">¿Quién ingresa?</p>
-  <button class="rbtn" onclick="selRole(this,'admin')">
-    <span class="ric">👨‍🏫</span>
-    <div><h3>Administrador</h3><p>Profr. Cecilio o Danika</p></div>
-  </button>
-  <button class="rbtn" onclick="selRole(this,'alumno')">
-    <span class="ric">🎒</span>
-    <div><h3>Alumno</h3><p>Enviar archivo para impresión</p></div>
-  </button>
-</div>
-
-<div id="login-form" style="display:none">
-  <p id="login-label" style="font-size:.82rem;font-weight:600;margin-bottom:10px;color:var(--ink2)"></p>
-  <input class="linp" type="text" id="login-nombre" placeholder="Ingrese su nombre…" autocomplete="off">
-  <div id="login-pass-wrap" style="display:none">
-    <input class="linp" type="password" id="login-pass" placeholder="Contraseña…" autocomplete="off">
-  </div>
-  <button class="lbtn" onclick="entrar()">Entrar →</button>
-  <button onclick="resetLogin()" style="display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--ink3);font-size:.78rem;cursor:pointer;font-family:var(--f)">← Volver</button>
-</div>
-
+      <p style="font-size:.78rem;color:var(--ink3);margin-bottom:12px;font-weight:600">¿Quién ingresa?</p>
+      <button class="rbtn" onclick="selRole(this,'admin')">
+        <span class="ric">👨‍🏫</span>
+        <div><h3>Administrador</h3><p>Profr. Cecilio o Danika</p></div>
+      </button>
+      <button class="rbtn" onclick="selRole(this,'alumno')">
+        <span class="ric">🎒</span>
+        <div><h3>Alumno</h3><p>Enviar archivo para impresión</p></div>
+      </button>
+    </div>
 
     <div id="login-form" style="display:none">
       <p id="login-label" style="font-size:.82rem;font-weight:600;margin-bottom:10px;color:var(--ink2)"></p>
       <input class="linp" type="text" id="login-nombre" placeholder="Ingrese su nombre…" autocomplete="off">
+      <div id="login-pass-wrap" style="display:none">
+        <input class="linp" type="password" id="login-pass" placeholder="Contraseña…" autocomplete="off">
+      </div>
       <button class="lbtn" onclick="entrar()">Entrar →</button>
       <button onclick="resetLogin()" style="display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--ink3);font-size:.78rem;cursor:pointer;font-family:var(--f)">← Volver</button>
     </div>
+
   </div>
 </div>
 
@@ -346,8 +339,12 @@ tbody tr:hover{background:var(--paper)}
       <div style="height:16px"></div>
       <div class="card">
         <div class="cbar"><span class="ctitle">🏆 Top productos vendidos</span></div>
-        <table><thead><tr><th>#</th><th>Producto</th><th>Vendidos</th><th>Ingresos</th></tr></thead>
-        <tbody id="top5"></tbody></table>
+        <table>
+          <thead>
+            <tr><th>#</th><th>Producto</th><th>Vendidos</th><th>Ingresos</th></tr>
+          </thead>
+          <tbody id="top5"></tbody>
+        </table>
       </div>
     </section>
 
@@ -362,8 +359,13 @@ tbody tr:hover{background:var(--paper)}
             <div class="cbar">
               <span class="ctitle">🖨️ Impresiones pendientes</span>
               <span class="badge bind" id="cola-venta-count">0</span>
-								<div class="sp"></div>
-					<button class="btn bp bsm" onclick="abrirImpresionManual()">➕ Manual</button>
+              <div class="sp"></div>
+              <button class="btn bp bsm" onclick="abrirImpresionManual()">➕ Manual</button>
+            </div>
+            <div style="padding:12px 14px;max-height:200px;overflow-y:auto" id="cola-venta-list">
+              <div class="empty">Sin impresiones pendientes</div>
+            </div>
+          </div>
 
           <!-- Productos inventario -->
           <div class="card">
@@ -434,7 +436,9 @@ tbody tr:hover{background:var(--paper)}
           <button class="btn bp" onclick="openProdModal()">➕ Nuevo producto</button>
         </div>
         <table>
-          <thead><tr><th>QR</th><th>Nombre</th><th>Precio venta</th><th>Costo</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
+          <thead>
+            <tr><th>QR</th><th>Nombre</th><th>Precio venta</th><th>Costo</th><th>Stock</th><th>Estado</th><th></th></tr>
+          </thead>
           <tbody id="t-prods"></tbody>
         </table>
       </div>
@@ -452,8 +456,12 @@ tbody tr:hover{background:var(--paper)}
         <div style="align-self:flex-end"><button class="btn bs" onclick="renderHist()">Filtrar</button></div>
       </div>
       <div class="card">
-        <table><thead><tr><th>Folio</th><th>Fecha</th><th>Hora</th><th>Items</th><th>Pago</th><th>Total</th></tr></thead>
-        <tbody id="t-hist"></tbody></table>
+        <table>
+          <thead>
+            <tr><th>Folio</th><th>Fecha</th><th>Hora</th><th>Items</th><th>Pago</th><th>Total</th></tr>
+          </thead>
+          <tbody id="t-hist"></tbody>
+        </table>
       </div>
     </section>
 
@@ -483,8 +491,12 @@ tbody tr:hover{background:var(--paper)}
       </div>
       <div class="card">
         <div class="cbar"><span class="ctitle">Últimos movimientos</span></div>
-        <table><thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Costo total</th></tr></thead>
-        <tbody id="t-stock"></tbody></table>
+        <table>
+          <thead>
+            <tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Costo total</th></tr>
+          </thead>
+          <tbody id="t-stock"></tbody>
+        </table>
       </div>
     </section>
 
@@ -516,8 +528,12 @@ tbody tr:hover{background:var(--paper)}
       </div>
       <div class="card">
         <div class="cbar"><span class="ctitle">Egresos registrados</span></div>
-        <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Monto</th><th>Comprobante</th><th></th></tr></thead>
-        <tbody id="t-egr"></tbody></table>
+        <table>
+          <thead>
+            <tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Monto</th><th>Comprobante</th><th></th></tr>
+          </thead>
+          <tbody id="t-egr"></tbody>
+        </table>
       </div>
     </section>
 
@@ -590,12 +606,31 @@ tbody tr:hover{background:var(--paper)}
 
 <!-- ═══════════════ MODALES ═══════════════ -->
 
-<!-- Modal Producto -->
+<!-- Modal Producto (actualizado con foto y descripción) -->
 <div class="ov" id="ov-prod">
   <div class="modal">
     <div class="mh"><h2 id="mp-title">Nuevo Producto</h2><button class="xbtn" onclick="closeModal('ov-prod')">✕</button></div>
     <div class="mb">
       <div class="fg">
+
+        <!-- FOTO DEL PRODUCTO -->
+        <div class="fld">
+          <label>Foto del producto</label>
+          <div style="position:relative;width:100%;aspect-ratio:2/1;border-radius:12px;overflow:hidden;background:var(--paper2);border:2px dashed var(--paper3);cursor:pointer" onclick="document.getElementById('mp-foto-input').click()">
+            <img id="mp-foto-preview" src="" alt="Preview" style="display:none;width:100%;height:100%;object-fit:cover">
+            <div id="mp-foto-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:6px;color:var(--ink3)">
+              <span style="font-size:2rem">📷</span>
+              <span style="font-size:.8rem;font-weight:600">Tomar foto o elegir imagen</span>
+              <span style="font-size:.72rem">Toca para abrir la cámara</span>
+            </div>
+            <!-- capture="environment" abre cámara trasera directo en iPad/celular -->
+            <input type="file" id="mp-foto-input" accept="image/*" capture="environment"
+              style="position:absolute;inset:0;opacity:0;cursor:pointer"
+              onchange="previewFoto(this)">
+          </div>
+          <span class="hint">En iPad y celular abre la cámara directamente. En computadora abre la galería.</span>
+        </div>
+
         <div class="f2">
           <div class="fld"><label>Nombre *</label><input type="text" id="mp-nom" placeholder="Nombre del producto"></div>
           <div class="fld"><label>Categoría</label>
@@ -604,6 +639,10 @@ tbody tr:hover{background:var(--paper)}
               <option>Tijeras / Pegamento</option><option>Papel / Cartulina</option>
               <option>Folders</option><option>Arte / Manualidades</option><option>Dulces</option><option>Otros</option>
             </select>
+          </div>
+          <div class="fld" style="grid-column:1/-1">
+            <label>Descripción (aparece en catálogo)</label>
+            <input type="text" id="mp-desc" placeholder="Ej: 100 hojas, pasta dura, cuadros…">
           </div>
           <div class="fld"><label>Precio costo ($) *</label><input type="number" id="mp-cost" min="0" step="0.01" placeholder="0.00"></div>
           <div class="fld"><label>Precio venta ($) *</label><input type="number" id="mp-venta" min="0" step="0.01" placeholder="0.00"></div>
@@ -614,7 +653,7 @@ tbody tr:hover{background:var(--paper)}
     </div>
     <div class="mf">
       <button class="btn bs" onclick="closeModal('ov-prod')">Cancelar</button>
-      <button class="btn bp" onclick="saveProd()">💾 Guardar</button>
+      <button class="btn bp" onclick="saveProd()">💾 Guardar producto</button>
     </div>
   </div>
 </div>

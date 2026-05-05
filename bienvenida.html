@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CBTa 130 — Papelería & Impresiones</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0f1923;--ink3:#5a7184;
+  --accent:#d4521a;--accent2:#e8732e;
+  --indigo:#4338ca;--il:#eef2ff;
+  --f:'DM Sans',sans-serif;
+}
+html,body{height:100%;font-family:var(--f)}
+body{background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;min-height:100vh}
+
+.logo{text-align:center;margin-bottom:36px}
+.logo h1{color:#fff;font-size:1.8rem;font-weight:800;letter-spacing:-.5px}
+.logo h1 em{color:var(--accent2);font-style:normal}
+.logo p{color:var(--ink3);font-size:.88rem;margin-top:6px}
+.logo .tag{display:inline-block;background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;padding:3px 12px;border-radius:99px;margin-top:8px}
+
+.options{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%;max-width:420px;margin-bottom:24px}
+
+.opt{background:#fff;border-radius:20px;padding:28px 20px;text-align:center;cursor:pointer;text-decoration:none;transition:all .18s;border:3px solid transparent;display:flex;flex-direction:column;align-items:center;gap:10px}
+.opt:hover{transform:translateY(-4px);border-color:var(--accent2)}
+.opt .oi{font-size:2.8rem}
+.opt h2{font-size:.95rem;font-weight:800;color:var(--ink)}
+.opt p{font-size:.75rem;color:var(--ink3);line-height:1.4}
+.opt.indigo:hover{border-color:var(--indigo)}
+
+.admin-link{color:var(--ink3);font-size:.78rem;text-decoration:none;border:1px solid rgba(255,255,255,.1);padding:9px 20px;border-radius:99px;transition:all .15s}
+.admin-link:hover{color:#fff;border-color:rgba(255,255,255,.3)}
+
+@media(max-width:400px){
+  .options{grid-template-columns:1fr}
+  .logo h1{font-size:1.5rem}
+}
+</style>
+</head>
+<body>
+
+<div class="logo">
+  <h1>🏪 <em>CBTa</em> 130</h1>
+  <p>Papelería Escolar & Centro de Impresiones</p>
+  <span class="tag">¿Qué necesitas hoy?</span>
+</div>
+
+<div class="options">
+  <a class="opt" href="/catalogo.html">
+    <span class="oi">📦</span>
+    <h2>Catálogo de Productos</h2>
+    <p>Consulta precios y disponibilidad de papelería</p>
+  </a>
+  <a class="opt indigo" href="/index.html?destino=impresion">
+    <span class="oi">🖨️</span>
+    <h2>Centro de Impresiones</h2>
+    <p>Envía tu archivo PDF para imprimir</p>
+  </a>
+</div>
+
+<a class="admin-link" href="/index.html">⚙️ Acceso personal</a>
+
+</body>
+</html>

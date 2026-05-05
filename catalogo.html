@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catálogo — CBTa 130 Papelería</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0f1923;--ink2:#2d3f50;--ink3:#5a7184;
+  --paper:#f5f2eb;--paper2:#ede9df;--paper3:#e2ddd3;
+  --accent:#d4521a;--accent2:#e8732e;--al:#fdf0e8;
+  --teal:#0e7c6e;--tl:#e6f7f5;
+  --gold:#c9921a;--gl:#fdf6e3;
+  --red:#c0392b;--rl:#fdecea;
+  --green:#1a7c4a;--grl:#e6f7ee;
+  --indigo:#4338ca;--il:#eef2ff;
+  --r:16px;--rs:10px;
+  --sh:0 2px 16px rgba(15,25,35,.08);
+  --shl:0 8px 32px rgba(15,25,35,.14);
+  --f:'DM Sans',sans-serif;
+}
+html{font-size:15px}
+body{font-family:var(--f);background:var(--paper);color:var(--ink);min-height:100vh}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-thumb{background:var(--paper3);border-radius:99px}
+
+/* HEADER */
+.header{background:var(--ink);padding:0 20px;position:sticky;top:0;z-index:100;height:60px;display:flex;align-items:center;gap:14px}
+.header-logo{color:#fff;font-size:1.05rem;font-weight:800;display:flex;align-items:center;gap:8px;text-decoration:none}
+.header-logo em{color:var(--accent2);font-style:normal}
+.header-sub{color:#5a7184;font-size:.78rem;margin-left:2px}
+.header-right{margin-left:auto;display:flex;gap:10px;align-items:center}
+.btn-imp{background:var(--indigo);color:#fff;border:none;border-radius:var(--rs);padding:8px 14px;font-family:var(--f);font-size:.8rem;font-weight:600;cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:6px}
+.btn-imp:hover{opacity:.88}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,var(--ink) 0%,var(--ink2) 100%);padding:36px 20px 28px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+.hero h1{color:#fff;font-size:1.6rem;font-weight:800;margin-bottom:6px;position:relative}
+.hero h1 span{color:var(--accent2)}
+.hero p{color:#8fa3b1;font-size:.88rem;position:relative}
+.hero-stats{display:flex;justify-content:center;gap:24px;margin-top:20px;position:relative}
+.hstat{text-align:center}
+.hstat .n{font-size:1.4rem;font-weight:800;color:#fff}
+.hstat .l{font-size:.7rem;color:#8fa3b1;text-transform:uppercase;letter-spacing:.5px}
+
+/* BUSCADOR Y FILTROS */
+.controls{padding:20px;max-width:900px;margin:0 auto}
+.search-wrap{position:relative;margin-bottom:14px}
+.search-wrap input{width:100%;padding:13px 16px 13px 44px;border:2px solid var(--paper3);border-radius:var(--r);font-family:var(--f);font-size:.95rem;background:#fff;outline:none;transition:border-color .15s;box-shadow:var(--sh)}
+.search-wrap input:focus{border-color:var(--accent)}
+.search-wrap::before{content:'🔍';position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:1rem;pointer-events:none}
+.search-wrap input::placeholder{color:var(--ink3)}
+
+.cats{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cat-btn{background:#fff;border:2px solid var(--paper3);border-radius:99px;padding:7px 16px;font-family:var(--f);font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;color:var(--ink2);box-shadow:var(--sh)}
+.cat-btn:hover{border-color:var(--accent);color:var(--accent)}
+.cat-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* RESULTADOS */
+.results-bar{padding:0 20px 12px;max-width:900px;margin:0 auto;font-size:.8rem;color:var(--ink3);font-weight:500}
+
+/* GRID */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;padding:0 20px 40px;max-width:900px;margin:0 auto}
+
+/* PRODUCT CARD */
+.pcard{background:#fff;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);transition:all .2s;border:2px solid transparent}
+.pcard:hover{transform:translateY(-3px);box-shadow:var(--shl);border-color:var(--paper3)}
+.pcard.agotado{opacity:.65}
+.pcard-img{width:100%;aspect-ratio:1;object-fit:cover;background:var(--paper2);display:block}
+.pcard-img-placeholder{width:100%;aspect-ratio:1;background:linear-gradient(135deg,var(--paper2),var(--paper3));display:flex;align-items:center;justify-content:center;font-size:3rem}
+.pcard-body{padding:12px 14px}
+.pcard-cat{font-size:.68rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.pcard-name{font-size:.88rem;font-weight:700;color:var(--ink);line-height:1.3;margin-bottom:8px}
+.pcard-price{font-size:1.15rem;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.pcard-footer{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--paper2)}
+.stock-badge{font-size:.72rem;font-weight:600;padding:3px 9px;border-radius:99px}
+.sb-ok{background:var(--grl);color:var(--green)}
+.sb-low{background:var(--gl);color:var(--gold)}
+.sb-out{background:var(--rl);color:var(--red)}
+.pcard-units{font-size:.72rem;color:var(--ink3)}
+
+/* EMPTY */
+.empty-state{text-align:center;padding:60px 20px;color:var(--ink3);grid-column:1/-1}
+.empty-state .ei{font-size:3rem;margin-bottom:12px}
+.empty-state h3{font-weight:700;color:var(--ink2);margin-bottom:6px}
+.empty-state p{font-size:.84rem}
+
+/* FLOATING BTN */
+.fab{position:fixed;bottom:24px;right:24px;background:var(--indigo);color:#fff;border:none;border-radius:99px;padding:13px 20px;font-family:var(--f);font-size:.85rem;font-weight:700;cursor:pointer;box-shadow:var(--shl);display:flex;align-items:center;gap:8px;z-index:99;text-decoration:none;transition:all .15s}
+.fab:hover{background:#3730a3;transform:translateY(-2px)}
+
+/* MODAL DETALLE */
+.ov{position:fixed;inset:0;background:rgba(15,25,35,.54);z-index:200;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)}
+.ov.on{display:flex}
+.modal{background:#fff;border-radius:var(--r);width:100%;max-width:460px;max-height:90vh;overflow-y:auto;box-shadow:var(--shl);animation:mup .18s ease}
+@keyframes mup{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.modal-img{width:100%;aspect-ratio:1;object-fit:cover}
+.modal-img-ph{width:100%;aspect-ratio:1;background:linear-gradient(135deg,var(--paper2),var(--paper3));display:flex;align-items:center;justify-content:center;font-size:5rem}
+.modal-body{padding:20px}
+.modal-cat{font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.modal-name{font-size:1.2rem;font-weight:800;color:var(--ink);margin-bottom:10px;line-height:1.3}
+.modal-price{font-size:1.8rem;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;margin-bottom:14px}
+.modal-desc{font-size:.84rem;color:var(--ink3);line-height:1.6;margin-bottom:16px}
+.modal-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.mmeta{background:var(--paper);border-radius:var(--rs);padding:10px 12px}
+.mmeta .mv{font-size:.95rem;font-weight:700;color:var(--ink)}
+.mmeta .ml{font-size:.68rem;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.xbtn{position:absolute;top:14px;right:14px;background:rgba(0,0,0,.4);border:none;border-radius:99px;width:32px;height:32px;color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.modal-rel{position:relative}
+
+/* FOOTER */
+.footer{background:var(--ink);color:#5a7184;text-align:center;padding:20px;font-size:.78rem}
+.footer a{color:var(--accent2);text-decoration:none}
+
+@media(max-width:500px){
+  .grid{grid-template-columns:repeat(2,1fr);gap:12px;padding:0 12px 40px}
+  .hero h1{font-size:1.3rem}
+  .controls{padding:14px}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a class="header-logo" href="/">🏪 <em>CBTa</em> 130 <span class="header-sub">Papelería</span></a>
+  <div class="header-right">
+    <a class="btn-imp" href="/index.html?destino=impresion">🖨️ Centro de Impresiones</a>
+  </div>
+</header>
+
+<div class="hero">
+  <h1>📦 Catálogo de <span>Productos</span></h1>
+  <p>Consulta existencias y precios en tiempo real antes de venir</p>
+  <div class="hero-stats">
+    <div class="hstat"><div class="n" id="stat-total">—</div><div class="l">Productos</div></div>
+    <div class="hstat"><div class="n" id="stat-disponibles">—</div><div class="l">Disponibles</div></div>
+    <div class="hstat"><div class="n" id="stat-cats">—</div><div class="l">Categorías</div></div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="search-wrap">
+    <input type="text" id="buscador" placeholder="Buscar producto… ej: hoja, cuaderno, bolígrafo" oninput="filtrar()">
+  </div>
+  <div class="cats" id="cats-bar">
+    <button class="cat-btn on" onclick="selCat(this,'todas')">🏷️ Todas</button>
+  </div>
+</div>
+
+<div class="results-bar" id="results-bar"></div>
+
+<div class="grid" id="grid">
+  <div class="empty-state">
+    <div class="ei">⏳</div>
+    <h3>Cargando catálogo…</h3>
+    <p>Conectando con el inventario</p>
+  </div>
+</div>
+
+<a class="fab" href="/index.html?destino=impresion">🖨️ Enviar archivo para impresión</a>
+
+<!-- Modal detalle -->
+<div class="ov" id="ov-detail" onclick="if(event.target===this)closeDetail()">
+  <div class="modal">
+    <div class="modal-rel">
+      <div id="modal-img-wrap"></div>
+      <button class="xbtn" onclick="closeDetail()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-cat" id="md-cat"></div>
+      <div class="modal-name" id="md-name"></div>
+      <div class="modal-price" id="md-price"></div>
+      <div class="modal-meta" id="md-meta"></div>
+      <div class="modal-desc" id="md-desc"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { firebaseConfig } from "./js/firebase-config.js";
+
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
+let productos = [];
+let catActual = 'todas';
+const ICONS = {
+  'Cuadernos':'📓','Lapiceros / Lápices':'✏️','Marcadores':'🖊️',
+  'Tijeras / Pegamento':'✂️','Papel / Cartulina':'📄','Folders':'📁',
+  'Arte / Manualidades':'🎨','Dulces':'🍬','Impresiones':'🖨️','Otros':'📦'
+};
+
+// Escuchar inventario en tiempo real
+onSnapshot(collection(db, 'inventario'), snap => {
+  productos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  buildCats();
+  filtrar();
+  updateStats();
+});
+
+function buildCats(){
+  const cats = [...new Set(productos.map(p=>p.categoria||'Otros'))].sort();
+  const bar = document.getElementById('cats-bar');
+  bar.innerHTML = `<button class="cat-btn on" onclick="selCat(this,'todas')">🏷️ Todas</button>` +
+    cats.map(c=>`<button class="cat-btn" onclick="selCat(this,'${c}')">${ICONS[c]||'📦'} ${c}</button>`).join('');
+}
+
+function updateStats(){
+  const disp = productos.filter(p=>(p.stock||0)>0).length;
+  const cats  = new Set(productos.map(p=>p.categoria||'Otros')).size;
+  document.getElementById('stat-total').textContent = productos.length;
+  document.getElementById('stat-disponibles').textContent = disp;
+  document.getElementById('stat-cats').textContent = cats;
+}
+
+window.selCat = (btn, cat) => {
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  catActual = cat;
+  filtrar();
+};
+
+window.filtrar = () => {
+  const q = (document.getElementById('buscador').value||'').toLowerCase().trim();
+  let f = catActual==='todas' ? productos : productos.filter(p=>(p.categoria||'Otros')===catActual);
+  if(q) f = f.filter(p=>
+    (p.nombre||'').toLowerCase().includes(q) ||
+    (p.categoria||'').toLowerCase().includes(q) ||
+    (p.descripcion||'').toLowerCase().includes(q)
+  );
+  // Ordenar: disponibles primero
+  f.sort((a,b)=> (b.stock||0)-(a.stock||0));
+  renderGrid(f);
+  document.getElementById('results-bar').textContent =
+    q||catActual!=='todas' ? `${f.length} resultado${f.length!==1?'s':''} encontrado${f.length!==1?'s':''}` : '';
+};
+
+function renderGrid(lista){
+  const grid = document.getElementById('grid');
+  if(!lista.length){
+    grid.innerHTML = `<div class="empty-state">
+      <div class="ei">🔍</div>
+      <h3>Sin resultados</h3>
+      <p>Intente con otro término o categoría</p>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = lista.map(p=>{
+    const stock = p.stock||0;
+    const agot  = stock===0;
+    const bajo  = stock>0&&stock<=5;
+    const badgeCls = agot?'sb-out':bajo?'sb-low':'sb-ok';
+    const badgeTxt = agot?'🔴 Agotado':bajo?'🟡 Pocas unidades':'🟢 Disponible';
+    const imgHtml = p.fotoURL
+      ? `<img class="pcard-img" src="${p.fotoURL}" alt="${p.nombre}" loading="lazy">`
+      : `<div class="pcard-img-placeholder">${ICONS[p.categoria||'Otros']||'📦'}</div>`;
+    return `<div class="pcard ${agot?'agotado':''}" onclick="verDetalle('${p.id}')">
+      ${imgHtml}
+      <div class="pcard-body">
+        <div class="pcard-cat">${p.categoria||'General'}</div>
+        <div class="pcard-name">${p.nombre}</div>
+        <div class="pcard-price">$${(p.venta||0).toFixed(2)}</div>
+        <div class="pcard-footer">
+          <span class="stock-badge ${badgeCls}">${badgeTxt}</span>
+          ${!agot?`<span class="pcard-units">${stock} uds.</span>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.verDetalle = (id) => {
+  const p = productos.find(x=>x.id===id);
+  if(!p) return;
+  const stock = p.stock||0;
+  const agot  = stock===0;
+  const bajo  = stock>0&&stock<=5;
+  document.getElementById('md-cat').textContent    = p.categoria||'General';
+  document.getElementById('md-name').textContent   = p.nombre;
+  document.getElementById('md-price').textContent  = `$${(p.venta||0).toFixed(2)}`;
+  document.getElementById('md-desc').textContent   = p.descripcion||'';
+  document.getElementById('modal-img-wrap').innerHTML = p.fotoURL
+    ? `<img class="modal-img" src="${p.fotoURL}" alt="${p.nombre}">`
+    : `<div class="modal-img-ph">${ICONS[p.categoria||'Otros']||'📦'}</div>`;
+  document.getElementById('md-meta').innerHTML = `
+    <div class="mmeta"><div class="mv">${agot?'Agotado':bajo?'Pocas ('+stock+')':stock+' uds.'}</div><div class="ml">Disponibilidad</div></div>
+    <div class="mmeta"><div class="mv">${p.unidad||'Pieza'}</div><div class="ml">Unidad</div></div>
+  `;
+  document.getElementById('ov-detail').classList.add('on');
+};
+
+window.closeDetail = () => document.getElementById('ov-detail').classList.remove('on');
+</script>
+
+<footer class="footer">
+  CBTa 130 — Papelería Escolar &nbsp;·&nbsp;
+  <a href="/index.html">Panel administrativo</a> &nbsp;·&nbsp;
+  Precios y disponibilidad actualizados en tiempo real
+</footer>
+</body>
+</html>

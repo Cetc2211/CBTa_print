@@ -58,8 +58,13 @@ function setDate(){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// AUTENTICACIÓN (misma lógica del original + nuevo UI)
+// AUTENTICACIÓN
 // ═══════════════════════════════════════════════════════════════════
+const ADMINS = {
+  'CECILIO': '221182',
+  'DANIKA':  '130130',
+};
+
 let roleSelected = null;
 
 window.selRole = (btn, role) => {
@@ -70,9 +75,12 @@ window.selRole = (btn, role) => {
   const form = document.getElementById('login-form');
   form.style.display = 'block';
   document.getElementById('login-label').textContent =
-    role === 'admin' ? 'Ingrese contraseña de administrador:' : 'Ingrese su nombre:';
+    role === 'admin' ? 'Nombre y contraseña:' : 'Ingrese su nombre:';
   document.getElementById('login-nombre').placeholder =
-    role === 'admin' ? 'Contraseña…' : 'Su nombre completo…';
+    role === 'admin' ? 'Nombre…' : 'Su nombre completo…';
+  // Mostrar campo contraseña solo para admin
+  document.getElementById('login-pass-wrap').style.display =
+    role === 'admin' ? 'block' : 'none';
   document.getElementById('login-nombre').focus();
 };
 
@@ -81,28 +89,34 @@ window.resetLogin = () => {
   document.getElementById('role-select').style.display = 'block';
   document.getElementById('login-form').style.display = 'none';
   document.getElementById('login-nombre').value = '';
+  document.getElementById('login-pass').value = '';
 };
 
 window.entrar = () => {
-  const val = document.getElementById('login-nombre').value.trim();
-  if(!val){ toast('Ingrese un nombre o contraseña','er'); return; }
+  const nombre = document.getElementById('login-nombre').value.trim().toUpperCase();
+  if(!nombre){ toast('Ingrese su nombre','er'); return; }
 
   if(roleSelected === 'admin'){
-    // El original usaba "CECILIO" como clave — mantenemos compatibilidad
-    if(val.toUpperCase() !== 'CECILIO'){
+    const pass = document.getElementById('login-pass').value.trim();
+    if(!ADMINS[nombre]){
+      toast('Usuario no encontrado','er'); return;
+    }
+    if(ADMINS[nombre] !== pass){
       toast('Contraseña incorrecta','er'); return;
     }
-    localStorage.setItem('usuario_cbta','CECILIO');
-    mostrarAdmin();
+    localStorage.setItem('usuario_cbta', nombre);
+    mostrarAdmin(nombre);
   } else {
-    if(val.length < 2){ toast('Nombre demasiado corto','er'); return; }
-    localStorage.setItem('usuario_cbta', val.toUpperCase());
-    mostrarAlumno(val.toUpperCase());
+    if(nombre.length < 2){ toast('Nombre demasiado corto','er'); return; }
+    localStorage.setItem('usuario_cbta', nombre);
+    mostrarAlumno(nombre);
   }
 };
 
-// Enter en input
 document.getElementById('login-nombre')?.addEventListener('keydown', e=>{
+  if(e.key==='Enter') window.entrar();
+});
+document.getElementById('login-pass')?.addEventListener('keydown', e=>{
   if(e.key==='Enter') window.entrar();
 });
 
@@ -110,16 +124,16 @@ function verificarSesion(){
   const user = localStorage.getItem('usuario_cbta');
   if(!user){
     showScreen('scr-login');
-  } else if(user === 'CECILIO'){
-    mostrarAdmin();
+  } else if(ADMINS[user]){
+    mostrarAdmin(user);
   } else {
     mostrarAlumno(user);
   }
 }
 
-function mostrarAdmin(){
+function mostrarAdmin(nombre){
   showScreen('scr-admin');
-  document.getElementById('admin-nombre').textContent = 'Profr. Cecilio';
+  document.getElementById('admin-nombre').textContent = 'Prof. ' + nombre;
   iniciarAdmin();
   setDate();
 }
@@ -131,7 +145,6 @@ function mostrarAlumno(nombre){
 
 window.cerrarSesion = () => {
   localStorage.removeItem('usuario_cbta');
-  // Detener listeners Firebase si es necesario
   location.reload();
 };
 

@@ -1,117 +1,655 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>POS Pro - CBTa 130</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <style>
-        .custom-scroll { -webkit-overflow-scrolling: touch; }
-        input, select, textarea { font-size: 16px !important; }
-        .table-container { overflow-x: auto; white-space: nowrap; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .animate-spin-once { animation: spin 0.6s linear; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CBTa 130 — POS Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0f1923;--ink2:#2d3f50;--ink3:#5a7184;
+  --paper:#f5f2eb;--paper2:#ede9df;--paper3:#e2ddd3;
+  --accent:#d4521a;--accent2:#e8732e;--al:#fdf0e8;
+  --teal:#0e7c6e;--tl:#e6f7f5;
+  --gold:#c9921a;--gl:#fdf6e3;
+  --red:#c0392b;--rl:#fdecea;
+  --green:#1a7c4a;--grl:#e6f7ee;
+  --blue:#1a4a7c;--bl:#e6eef7;
+  --indigo:#4338ca;--il:#eef2ff;
+  --r:14px;--rs:9px;
+  --sh:0 2px 12px rgba(15,25,35,.08);
+  --shl:0 8px 32px rgba(15,25,35,.14);
+  --f:'DM Sans',sans-serif;--m:'DM Mono',monospace;
+}
+html{font-size:15px}
+body{font-family:var(--f);background:var(--paper);color:var(--ink);min-height:100vh;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--paper2)}::-webkit-scrollbar-thumb{background:var(--paper3);border-radius:99px}
+
+/* SCREENS */
+.scr{display:none;min-height:100vh}.scr.on{display:block}
+
+/* LOGIN */
+#scr-login{display:none;align-items:center;justify-content:center;background:var(--ink);padding:24px;min-height:100vh}
+#scr-login.on{display:flex;flex-direction:column}
+.lcard{background:#fff;border-radius:24px;padding:36px 32px;width:100%;max-width:400px;box-shadow:var(--shl)}
+.llogo{text-align:center;margin-bottom:28px}
+.llogo h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px}
+.llogo p{font-size:.8rem;color:var(--ink3);margin-top:3px}
+.ltag{display:inline-block;background:var(--accent);color:#fff;font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:99px;margin-top:6px}
+.rbtn{padding:14px 16px;border:2px solid var(--paper3);border-radius:var(--r);cursor:pointer;text-align:left;background:#fff;font-family:var(--f);transition:all .15s;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:10px}
+.rbtn:hover,.rbtn.sel{border-color:var(--accent);background:var(--al)}
+.rbtn .ric{font-size:1.8rem}
+.rbtn h3{font-size:.9rem;font-weight:700}
+.rbtn p{font-size:.73rem;color:var(--ink3)}
+.linp{width:100%;padding:11px 14px;border:1.5px solid var(--paper3);border-radius:var(--rs);font-family:var(--f);font-size:.9rem;outline:none;transition:border-color .15s;margin-bottom:12px}
+.linp:focus{border-color:var(--accent)}
+.lbtn{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:var(--rs);font-family:var(--f);font-size:.95rem;font-weight:700;cursor:pointer;transition:background .15s}
+.lbtn:hover{background:var(--accent2)}
+
+/* ADMIN LAYOUT */
+#scr-admin{display:none}
+#scr-admin.on{display:grid;grid-template-columns:220px 1fr;grid-template-rows:54px 1fr;min-height:100vh}
+.topbar{grid-column:1/-1;background:var(--ink);display:flex;align-items:center;gap:14px;padding:0 20px;position:sticky;top:0;z-index:100}
+.topbar-logo{font-size:1rem;font-weight:800;color:#fff;display:flex;align-items:center;gap:8px;letter-spacing:-.3px}
+.topbar-logo em{color:var(--accent2);font-style:normal}
+.topbar-user{margin-left:auto;font-size:.78rem;color:#8fa3b1;display:flex;align-items:center;gap:10px}
+.logout-btn{background:rgba(255,255,255,.08);border:none;color:#8fa3b1;font-family:var(--f);font-size:.73rem;padding:5px 10px;border-radius:6px;cursor:pointer}
+.logout-btn:hover{color:#fff;background:rgba(255,255,255,.14)}
+
+.sidebar{background:var(--ink2);padding:14px 10px;display:flex;flex-direction:column;gap:2px;position:sticky;top:54px;height:calc(100vh - 54px);overflow-y:auto}
+.nav-sec{font-size:.66rem;font-weight:700;color:#4a6070;text-transform:uppercase;letter-spacing:1px;padding:10px 10px 4px}
+.nav-btn{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:var(--rs);cursor:pointer;font-size:.84rem;color:#8fa3b1;transition:all .15s;border:none;background:none;width:100%;text-align:left;font-family:var(--f)}
+.nav-btn:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav-btn.on{background:var(--accent);color:#fff;font-weight:600}
+.nav-btn .ic{font-size:1rem;width:18px;text-align:center;flex-shrink:0}
+.badge-count{margin-left:auto;background:var(--red);color:#fff;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:99px;min-width:20px;text-align:center}
+
+.main{padding:24px;overflow-y:auto;max-height:calc(100vh - 54px)}
+.sec{display:none}.sec.on{display:block}
+.ptitle{font-size:1.4rem;font-weight:800;margin-bottom:2px;letter-spacing:-.3px}
+.psub{font-size:.84rem;color:var(--ink3);margin-bottom:20px}
+
+/* KPI CARDS */
+.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.kcard{background:#fff;border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh);border-left:4px solid var(--accent)}
+.kcard.t{border-left-color:var(--teal)}.kcard.g{border-left-color:var(--gold)}
+.kcard.r{border-left-color:var(--red)}.kcard.gr{border-left-color:var(--green)}
+.kcard.b{border-left-color:var(--blue)}.kcard.i{border-left-color:var(--indigo)}
+.kic{font-size:1.6rem;display:block;margin-bottom:6px}
+.kval{font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.klbl{font-size:.7rem;color:var(--ink3);margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+
+/* CARDS */
+.card{background:#fff;border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.cbar{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--paper2)}
+.ctitle{font-weight:700;font-size:.9rem}.sp{flex:1}
+
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead tr{background:var(--paper2)}
+th{padding:9px 13px;text-align:left;font-weight:600;font-size:.7rem;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+td{padding:9px 13px;border-bottom:1px solid var(--paper2);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--paper)}
+.empty{text-align:center;padding:40px;color:var(--ink3);font-size:.84rem}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:99px;font-size:.72rem;font-weight:600}
+.bok{background:var(--grl);color:var(--green)}.blow{background:var(--gl);color:var(--gold)}
+.bout{background:var(--rl);color:var(--red)}.bsrv{background:var(--bl);color:var(--blue)}
+.bind{background:var(--il);color:var(--indigo)}.bpend{background:var(--gl);color:var(--gold)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--rs);font-family:var(--f);font-size:.84rem;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
+.bp{background:var(--accent);color:#fff}.bp:hover{background:var(--accent2)}
+.bs{background:var(--paper2);color:var(--ink2)}.bs:hover{background:var(--paper3)}
+.bt{background:var(--teal);color:#fff}.bt:hover{opacity:.88}
+.br{background:var(--red);color:#fff}.br:hover{opacity:.88}
+.bi{background:var(--indigo);color:#fff}.bi:hover{opacity:.88}
+.bsm{padding:5px 10px;font-size:.78rem}.bic{padding:7px}
+.wf{width:100%;justify-content:center}
+
+/* MODAL */
+.ov{position:fixed;inset:0;background:rgba(15,25,35,.54);z-index:200;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)}
+.ov.on{display:flex}
+.modal{background:#fff;border-radius:var(--r);width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-shadow:var(--shl);animation:mup .18s ease}
+.modal-lg{max-width:660px}
+@keyframes mup{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.mh{padding:18px 22px 0;display:flex;align-items:center;justify-content:space-between}
+.mh h2{font-size:1.05rem;font-weight:700}
+.mb{padding:18px 22px}.mf{padding:0 22px 18px;display:flex;gap:8px;justify-content:flex-end}
+.xbtn{background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--ink3)}
+
+/* FORMS */
+.fg{display:flex;flex-direction:column;gap:12px}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld label{font-size:.77rem;font-weight:600;color:var(--ink2)}
+.fld input,.fld select,.fld textarea{padding:9px 11px;border:1.5px solid var(--paper3);border-radius:var(--rs);font-family:var(--f);font-size:.84rem;color:var(--ink);background:#fff;outline:none;transition:border-color .15s}
+.fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--accent)}
+.hint{font-size:.72rem;color:var(--ink3)}
+
+/* SEARCH */
+.sb{position:relative}.sb input{padding-left:32px;width:100%}
+.sb::before{content:'🔍';position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:.8rem;pointer-events:none}
+
+/* VENTA LAYOUT */
+.vlay{display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start}
+.cart{background:#fff;border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;position:sticky;top:0}
+.cart-head{background:var(--ink);color:#fff;padding:13px 16px;font-weight:700;font-size:.9rem;display:flex;align-items:center;justify-content:space-between}
+.cart-items{min-height:160px;max-height:320px;overflow-y:auto}
+.ci{display:flex;align-items:center;gap:9px;padding:9px 13px;border-bottom:1px solid var(--paper2)}
+.ci-info{flex:1;min-width:0}
+.ci-name{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci-sub{font-size:.72rem;color:var(--ink3)}
+.qb{display:flex;align-items:center;gap:4px}
+.qq{background:var(--paper2);border:none;border-radius:4px;width:22px;height:22px;cursor:pointer;font-size:.85rem;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--f)}
+.qq:hover{background:var(--paper3)}
+.ci-price{font-weight:700;font-size:.82rem;min-width:58px;text-align:right;font-variant-numeric:tabular-nums}
+.ci-del{background:none;border:none;cursor:pointer;color:var(--red);font-size:.85rem;padding:2px 5px}
+.ctot{padding:13px 16px;border-top:2px solid var(--paper2)}
+.trow{display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:5px;color:var(--ink3)}
+.trow.big{font-size:1.05rem;font-weight:800;color:var(--ink);margin-top:7px;padding-top:7px;border-top:1px solid var(--paper2)}
+.cfoot{padding:11px 16px;border-top:1px solid var(--paper2);display:flex;flex-direction:column;gap:7px}
+
+/* PAGO BTNS */
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+.pbtn{background:var(--paper2);border:2px solid transparent;border-radius:var(--rs);padding:8px 4px;cursor:pointer;font-size:.75rem;font-weight:600;text-align:center;transition:all .15s;font-family:var(--f)}
+.pbtn:hover{border-color:var(--accent);color:var(--accent)}
+.pbtn.sel{background:var(--al);border-color:var(--accent);color:var(--accent)}
+
+/* COLA IMPRESION */
+.imp-item{background:var(--paper);border:1.5px solid var(--paper3);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:8px;transition:border-color .15s}
+.imp-item:hover{border-color:var(--indigo)}
+.imp-item .imp-icon{font-size:1.8rem;flex-shrink:0}
+.imp-item .imp-info{flex:1;min-width:0}
+.imp-item .imp-name{font-size:.82rem;font-weight:700;color:var(--indigo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imp-item .imp-meta{font-size:.72rem;color:var(--ink3);margin-top:2px}
+.imp-item .imp-actions{display:flex;gap:6px;flex-shrink:0}
+
+/* ALUMNO PANEL */
+#scr-alumno{display:none;align-items:center;justify-content:center;min-height:100vh;background:var(--ink);padding:20px}
+#scr-alumno.on{display:flex;flex-direction:column}
+.acard{background:#fff;border-radius:24px;padding:28px 24px;width:100%;max-width:420px;box-shadow:var(--shl)}
+.acard-header{text-align:center;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--paper2)}
+.acard-header h2{font-size:1.1rem;font-weight:800;color:var(--ink)}
+.acard-header p{font-size:.78rem;color:var(--ink3);margin-top:3px}
+.tipo-card{border:2px solid var(--paper3);border-radius:var(--r);padding:14px;cursor:pointer;transition:all .15s;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.tipo-card:hover,.tipo-card.sel{border-color:var(--indigo);background:var(--il)}
+.tipo-card .tc-icon{font-size:1.5rem}
+.tipo-card .tc-info h4{font-size:.85rem;font-weight:700;color:var(--ink)}
+.tipo-card .tc-info p{font-size:.73rem;color:var(--ink3)}
+.tipo-card .tc-price{margin-left:auto;font-size:1rem;font-weight:800;color:var(--indigo)}
+.cost-display{background:var(--ink);border-radius:var(--r);padding:18px;text-align:center;margin:16px 0}
+.cost-display .cost-label{font-size:.7rem;color:#8fa3b1;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.cost-display .cost-val{font-size:2.2rem;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;margin-top:4px}
+.cost-display .cost-sub{font-size:.75rem;color:#8fa3b1;margin-top:2px}
+.upload-area{border:2px dashed var(--paper3);border-radius:var(--r);padding:24px;text-align:center;cursor:pointer;transition:all .15s;position:relative}
+.upload-area:hover,.upload-area.drag{border-color:var(--indigo);background:var(--il)}
+.upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload-area .up-icon{font-size:2rem;margin-bottom:6px}
+.upload-area p{font-size:.82rem;color:var(--ink3);font-weight:500}
+.upload-area .up-file{font-size:.78rem;color:var(--indigo);font-weight:700;margin-top:4px}
+.pags-info{display:flex;gap:10px;margin:12px 0}
+.pag-box{flex:1;background:var(--paper2);border-radius:var(--rs);padding:10px;text-align:center}
+.pag-box .pv{font-size:1.3rem;font-weight:800;color:var(--indigo)}
+.pag-box .pl{font-size:.68rem;color:var(--ink3);font-weight:600;text-transform:uppercase}
+
+/* QR SCANNER */
+.qr-area{background:#000;border-radius:var(--r);overflow:hidden;position:relative;aspect-ratio:1;max-width:270px;margin:0 auto}
+#qr-video{width:100%;height:100%;object-fit:cover;display:block}
+#qr-canvas{display:none}
+.qr-ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.qr-fr{width:60%;height:60%;border:3px solid var(--accent2);border-radius:10px}
+.qr-st{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.72);color:#fff;padding:7px;text-align:center;font-size:.77rem}
+
+/* CHARTS */
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.ch-card{background:#fff;border-radius:var(--r);padding:18px;box-shadow:var(--sh)}
+.ch-card h3{font-size:.86rem;font-weight:700;color:var(--ink2);margin-bottom:12px}
+.ch-wrap{position:relative;height:185px}
+
+/* QR THUMB */
+.qr-th{width:50px;height:50px;border-radius:6px;border:1px solid var(--paper3);cursor:pointer}
+
+/* STOCK BAR */
+.sbar{height:5px;background:var(--paper3);border-radius:99px;overflow:hidden;margin-top:3px}
+.sbar-f{height:100%;border-radius:99px;background:var(--green)}
+
+/* TOAST */
+.toasts{position:fixed;bottom:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:7px}
+.toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:var(--rs);font-size:.84rem;font-weight:500;animation:tin .22s ease;max-width:280px;box-shadow:var(--shl)}
+.toast.ok{background:var(--green)}.toast.er{background:var(--red)}.toast.wa{background:var(--gold)}
+@keyframes tin{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+
+/* ALERT BANNER */
+.al-ban{background:var(--rl);border:1px solid #f5c2be;border-radius:var(--rs);padding:10px 14px;margin-bottom:14px;font-size:.82rem;color:var(--red);display:none;align-items:center;gap:8px}
+.al-ban.show{display:flex}
+
+/* COLA BADGE (topbar) */
+.cola-badge{background:var(--red);color:#fff;font-size:.65rem;font-weight:700;padding:2px 6px;border-radius:99px;min-width:18px;text-align:center;display:none}
+.cola-badge.show{display:inline-block}
+
+@media(max-width:768px){
+  #scr-admin.on{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .vlay{grid-template-columns:1fr}
+  .cgrid{grid-template-columns:1fr}
+  .f2{grid-template-columns:1fr}
+  .kgrid{grid-template-columns:1fr 1fr}
+}
+</style>
 </head>
-<body class="bg-slate-100 p-2 font-sans overflow-x-hidden custom-scroll text-slate-800">
+<body>
 
-    <!-- Botón QR para Alumnos (Acceso rápido) -->
-    <button id="btn-flotante-qr" class="fixed bottom-6 right-6 bg-slate-900 text-white p-5 rounded-full shadow-2xl z-40 hidden active:scale-95 transition-all">📲 QR</button>
-
-    <!-- PANEL ADMINISTRADOR (PROFR. CECILIO) -->
-    <div id="panel-admin" class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 hidden">
-        
-        <!-- Columna Izquierda: Carrito de Cobro -->
-        <div class="lg:col-span-4 lg:h-[650px] lg:sticky lg:top-2 flex flex-col bg-white p-4 lg:p-6 rounded-[2.5rem] shadow-xl border-4 border-indigo-600 order-1">
-            <h2 class="text-center font-black uppercase text-[10px] text-slate-400 mb-4 tracking-widest">Cuenta Actual</h2>
-            <div id="items-carrito" class="flex-1 min-h-[120px] max-h-[300px] lg:max-h-none overflow-y-auto mb-4 border-t border-b py-2 text-[11px]">
-                <!-- Aquí caen productos e impresiones -->
-            </div>
-            <div class="text-center">
-                <p id="total-carrito" class="text-4xl lg:text-5xl font-black text-slate-900 mb-4">$0.00</p>
-                <button id="btn-finalizar" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black shadow-xl active:bg-indigo-700 uppercase transition-all">Finalizar y Cobrar</button>
-            </div>
-        </div>
-
-        <!-- Columna Derecha: Gestión -->
-        <div class="lg:col-span-8 space-y-4 order-2">
-            <header class="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-3xl shadow-sm gap-4">
-                <div class="flex flex-col items-center sm:items-start text-center sm:text-left">
-                    <h1 id="saludo" class="font-black uppercase text-xs text-slate-500 tracking-tighter">Panel Administrativo</h1>
-                    <button onclick="window.cerrarSesion()" class="text-[9px] text-red-500 font-bold uppercase underline">Cerrar Sesión</button>
-                </div>
-                <div class="flex gap-2 w-full sm:w-auto justify-center">
-                    <button id="btn-abrir-scanner" class="flex-1 bg-green-600 text-white px-4 py-3 rounded-xl font-bold text-[10px]">📸 ESCANEAR</button>
-                    <button id="btn-abrir-db" class="flex-1 bg-slate-900 text-white px-4 py-3 rounded-xl font-bold text-[10px]">📦 STOCK</button>
-                    <button id="btn-abrir-finanzas" class="flex-1 bg-amber-500 text-white px-4 py-3 rounded-xl font-bold text-[10px]">📊 FINANZAS</button>
-                </div>
-            </header>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Cola de Impresión -->
-                <div class="bg-white p-5 rounded-[2rem] border h-[480px] flex flex-col shadow-sm">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-black text-[10px] text-slate-400 uppercase tracking-widest">Impresiones Pendientes</h3>
-                        <button id="btn-refrescar-cola" class="bg-slate-100 p-2 rounded-full text-indigo-600 active:scale-90">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        </button>
-                    </div>
-                    <div id="lista-impresiones" class="flex-1 overflow-y-auto space-y-2 custom-scroll"></div>
-                </div>
-
-                <!-- Lista rápida de Stock -->
-                <div class="bg-white p-5 rounded-[2rem] border h-[480px] flex flex-col shadow-sm">
-                    <h3 class="text-center font-black text-[10px] text-slate-400 uppercase mb-4 tracking-widest">Papelería y Dulces</h3>
-                    <div class="relative mb-4">
-                        <input type="text" id="busqueda-producto" placeholder="Buscar artículo..." class="w-full bg-slate-100 border-none rounded-2xl p-3 pl-10 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-                        <div class="absolute left-3 top-3 text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg></div>
-                    </div>
-                    <div id="lista-stock-rapido" class="flex-1 overflow-y-auto space-y-1 custom-scroll"></div>
-                </div>
-            </div>
-        </div>
+<!-- ═══════════════ LOGIN ═══════════════ -->
+<div id="scr-login" class="scr">
+  <div class="lcard">
+    <div class="llogo">
+      <h1>🏪 CBTa 130</h1>
+      <p>Sistema de Impresiones y Papelería</p>
+      <span class="ltag">POS Pro v3.0</span>
     </div>
 
-    <!-- PANEL ALUMNO -->
-    <div id="panel-alumno" class="max-w-md mx-auto space-y-4 hidden pt-4 px-2">
-        <button onclick="window.cerrarSesion()" class="w-full text-center text-[10px] text-slate-400 font-bold uppercase mb-2">← Salir / Cambiar Usuario</button>
-        <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl border-t-8 border-indigo-600 space-y-6">
-            <h3 class="text-center font-black uppercase text-[10px] text-slate-400 tracking-widest">Subir Trabajo para Imprimir</h3>
-            
-            <div class="space-y-2">
-                <label class="text-[10px] font-black uppercase text-slate-400 ml-2">Selecciona tu archivo (PDF)</label>
-                <input type="file" id="input-archivo" accept=".pdf" class="w-full text-xs file:bg-slate-900 file:text-white file:rounded-xl file:border-0 file:p-3 file:mr-4 file:font-bold">
-            </div>
-
-            <div class="grid grid-cols-2 gap-2">
-                <div class="text-center bg-slate-50 p-2 rounded-2xl border">
-                    <span class="text-[8px] font-bold text-slate-400 block uppercase">Páginas detectadas</span>
-                    <input id="alumno-pags" type="number" readonly value="0" class="w-full bg-transparent font-black text-center text-xl outline-none">
-                </div>
-                <div class="flex flex-col">
-                    <span class="text-[8px] font-bold text-slate-400 block uppercase mb-1 ml-2">Tipo de Impresión</span>
-                    <select id="alumno-imp" class="bg-slate-50 border rounded-2xl p-3 font-black text-xs uppercase outline-none">
-                        <option value="laser_bn">Láser B/N ($0.50)</option>
-                        <option value="smart_tank">Color ($2.00)</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="bg-slate-900 rounded-[2rem] p-6 text-center shadow-xl">
-                <p id="info-status" class="text-green-400 text-[9px] font-black uppercase mb-1 tracking-widest">Costo Estimado</p>
-                <div id="alumno-total" class="text-4xl font-black text-white">$0.00</div>
-            </div>
-
-            <button id="btn-enviar-archivo" class="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl text-lg uppercase shadow-lg transition-all active:scale-95">Enviar al Profr. Cecilio</button>
-        </div>
+    <div id="role-select">
+      <p style="font-size:.78rem;color:var(--ink3);margin-bottom:12px;font-weight:600">¿Quién ingresa?</p>
+      <button class="rbtn" onclick="selRole(this,'admin')">
+        <span class="ric">👨‍🏫</span>
+        <div><h3>Profr. Cecilio</h3><p>Panel administrativo completo</p></div>
+      </button>
+      <button class="rbtn" onclick="selRole(this,'alumno')">
+        <span class="ric">🎒</span>
+        <div><h3>Alumno</h3><p>Enviar archivo para impresión</p></div>
+      </button>
     </div>
 
-    <!-- Modales (Finanzas, Inventario, Éxito) - Se mantienen según tu diseño original -->
-    <!-- ... (El resto de modales que ya tenías en tu index.html) ... -->
+    <div id="login-form" style="display:none">
+      <p id="login-label" style="font-size:.82rem;font-weight:600;margin-bottom:10px;color:var(--ink2)"></p>
+      <input class="linp" type="text" id="login-nombre" placeholder="Ingrese su nombre…" autocomplete="off">
+      <button class="lbtn" onclick="entrar()">Entrar →</button>
+      <button onclick="resetLogin()" style="display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--ink3);font-size:.78rem;cursor:pointer;font-family:var(--f)">← Volver</button>
+    </div>
+  </div>
+</div>
 
-    <script type="module" src="js/app.js?v=2026.final"></script>
+<!-- ═══════════════ ADMIN ═══════════════ -->
+<div id="scr-admin" class="scr">
+
+  <header class="topbar">
+    <div class="topbar-logo">🏪 <em>CBTa</em> 130 POS</div>
+    <div style="display:flex;align-items:center;gap:8px;margin:0 auto">
+      <span style="font-size:.78rem;color:#5a7184">Cola de impresión:</span>
+      <span class="cola-badge" id="cola-badge">0</span>
+      <span id="cola-count" style="font-size:.78rem;color:#8fa3b1">0 pendientes</span>
+    </div>
+    <div class="topbar-user">
+      <span id="admin-nombre" style="font-size:.8rem;color:#8fa3b1"></span>
+      <button class="logout-btn" onclick="cerrarSesion()">Salir</button>
+    </div>
+  </header>
+
+  <nav class="sidebar">
+    <div class="nav-sec">Principal</div>
+    <button class="nav-btn on" onclick="go('dashboard')"><span class="ic">📊</span> Dashboard</button>
+    <button class="nav-btn" onclick="go('venta')">
+      <span class="ic">🛒</span> Nueva Venta
+    </button>
+    <div class="nav-sec">Impresiones</div>
+    <button class="nav-btn" onclick="go('cola')">
+      <span class="ic">🖨️</span> Cola de Impresión
+      <span class="badge-count" id="nav-cola-badge" style="display:none">0</span>
+    </button>
+    <div class="nav-sec">Gestión</div>
+    <button class="nav-btn" onclick="go('productos')"><span class="ic">📦</span> Inventario</button>
+    <button class="nav-btn" onclick="go('historial')"><span class="ic">📋</span> Historial</button>
+    <button class="nav-btn" onclick="go('stock')"><span class="ic">🔄</span> Ajuste Stock</button>
+    <div class="nav-sec">Finanzas</div>
+    <button class="nav-btn" onclick="go('finanzas')"><span class="ic">💰</span> Egresos</button>
+    <div class="nav-sec">Datos</div>
+    <button class="nav-btn" onclick="exportar()"><span class="ic">⬇️</span> Exportar</button>
+  </nav>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <section class="sec on" id="s-dashboard">
+      <div class="ptitle">📊 Dashboard</div>
+      <div class="psub" id="dash-sub"></div>
+      <div class="kgrid" id="kpi-grid"></div>
+      <div class="al-ban" id="al-stock"><span>⚠️</span><span id="al-txt"></span></div>
+      <div class="cgrid">
+        <div class="ch-card"><h3>📈 Ventas últimos 7 días</h3><div class="ch-wrap"><canvas id="c-sem"></canvas></div></div>
+        <div class="ch-card"><h3>🖨️ Impresiones vs Papelería (mes)</h3><div class="ch-wrap"><canvas id="c-tipo"></canvas></div></div>
+      </div>
+      <div style="height:16px"></div>
+      <div class="card">
+        <div class="cbar"><span class="ctitle">🏆 Top productos vendidos</span></div>
+        <table><thead><tr><th>#</th><th>Producto</th><th>Vendidos</th><th>Ingresos</th></tr></thead>
+        <tbody id="top5"></tbody></table>
+      </div>
+    </section>
+
+    <!-- NUEVA VENTA -->
+    <section class="sec" id="s-venta">
+      <div class="ptitle">🛒 Nueva Venta</div>
+      <div class="psub">Agregue productos del inventario o impresiones pendientes al carrito</div>
+      <div class="vlay">
+        <div>
+          <!-- Cola impresiones rápida -->
+          <div class="card" style="margin-bottom:14px">
+            <div class="cbar">
+              <span class="ctitle">🖨️ Impresiones pendientes</span>
+              <span class="badge bind" id="cola-venta-count">0</span>
+            </div>
+            <div style="padding:12px 14px;max-height:200px;overflow-y:auto" id="cola-venta-list">
+              <div class="empty">Sin impresiones pendientes</div>
+            </div>
+          </div>
+          <!-- Productos inventario -->
+          <div class="card">
+            <div class="cbar">
+              <span class="ctitle">📦 Papelería y productos</span>
+              <div class="sp"></div>
+              <button class="btn bt bsm" onclick="openScanner()">📷 QR</button>
+            </div>
+            <div style="padding:12px 14px">
+              <div class="sb"><input type="text" id="v-buscar" placeholder="Buscar producto…" oninput="renderProdList()"></div>
+              <div id="prod-list" style="margin-top:10px;display:grid;gap:5px;max-height:260px;overflow-y:auto"></div>
+            </div>
+          </div>
+          <!-- Método pago -->
+          <div class="card" style="margin-top:14px">
+            <div class="cbar"><span class="ctitle">💳 Método de pago</span></div>
+            <div style="padding:12px 14px">
+              <div class="pgrid" id="pgrid">
+                <button class="pbtn sel" onclick="selPago(this,'Efectivo')">💵 Efectivo</button>
+                <button class="pbtn" onclick="selPago(this,'T. Débito')">💳 Débito</button>
+                <button class="pbtn" onclick="selPago(this,'T. Crédito')">💳 Crédito</button>
+                <button class="pbtn" onclick="selPago(this,'Transferencia')">📲 Transf.</button>
+                <button class="pbtn" onclick="selPago(this,'QR Digital')">📱 QR</button>
+                <button class="pbtn" onclick="selPago(this,'Fiado')">📝 Fiado</button>
+              </div>
+              <div class="fld" style="margin-top:10px">
+                <label>Notas (opcional)</label>
+                <input type="text" id="v-notas" placeholder="Cliente, referencia…">
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- CARRITO -->
+        <div class="cart">
+          <div class="cart-head">
+            <span>🧾 Carrito</span>
+            <span id="cart-count" style="font-size:.72rem;font-weight:400;color:#8fa3b1">0 items</span>
+          </div>
+          <div class="cart-items" id="cart-items"><div class="empty">Carrito vacío</div></div>
+          <div class="ctot" id="ctot" style="display:none">
+            <div class="trow"><span>Subtotal</span><span id="t-sub">$0.00</span></div>
+            <div class="trow"><span>IVA (servicios)</span><span id="t-iva">$0.00</span></div>
+            <div class="trow big"><span>TOTAL</span><span id="t-tot">$0.00</span></div>
+          </div>
+          <div class="cfoot">
+            <button class="btn bp wf" onclick="confirmarVenta()">✅ Cobrar</button>
+            <button class="btn bs wf" onclick="limpiarCarrito()">🗑️ Vaciar</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COLA IMPRESION -->
+    <section class="sec" id="s-cola">
+      <div class="ptitle">🖨️ Cola de Impresión</div>
+      <div class="psub">Documentos enviados por alumnos esperando impresión y cobro</div>
+      <div id="cola-full-list"></div>
+    </section>
+
+    <!-- INVENTARIO -->
+    <section class="sec" id="s-productos">
+      <div class="ptitle">📦 Inventario</div>
+      <div class="psub">Gestione productos. El QR se genera automáticamente para escaneo en caja.</div>
+      <div class="card">
+        <div class="cbar">
+          <div class="sb" style="width:210px"><input type="text" id="p-buscar" placeholder="Buscar…" oninput="renderProds()"></div>
+          <div class="sp"></div>
+          <button class="btn bp" onclick="openProdModal()">➕ Nuevo producto</button>
+        </div>
+        <table>
+          <thead><tr><th>QR</th><th>Nombre</th><th>Precio venta</th><th>Costo</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="t-prods"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- HISTORIAL -->
+    <section class="sec" id="s-historial">
+      <div class="ptitle">📋 Historial de Ventas</div>
+      <div class="psub">Registro de todas las transacciones cobradas</div>
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <div class="fld" style="width:140px"><label>Desde</label><input type="date" id="h-desde"></div>
+        <div class="fld" style="width:140px"><label>Hasta</label><input type="date" id="h-hasta"></div>
+        <div class="fld" style="flex:1;min-width:130px"><label>Buscar</label>
+          <div class="sb"><input type="text" id="h-q" placeholder="Producto, alumno…" oninput="renderHist()"></div></div>
+        <div style="align-self:flex-end"><button class="btn bs" onclick="renderHist()">Filtrar</button></div>
+      </div>
+      <div class="card">
+        <table><thead><tr><th>Folio</th><th>Fecha</th><th>Hora</th><th>Items</th><th>Pago</th><th>Total</th></tr></thead>
+        <tbody id="t-hist"></tbody></table>
+      </div>
+    </section>
+
+    <!-- STOCK -->
+    <section class="sec" id="s-stock">
+      <div class="ptitle">🔄 Ajuste de Stock</div>
+      <div class="psub">Registre entradas de mercancía o correcciones de inventario</div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="cbar"><span class="ctitle">Registrar movimiento</span></div>
+        <div style="padding:18px">
+          <div class="f2">
+            <div class="fld"><label>Producto *</label><select id="sk-prod"><option value="">— Seleccione —</option></select></div>
+            <div class="fld"><label>Tipo</label>
+              <select id="sk-tipo">
+                <option value="ENTRADA">📥 Entrada (compra)</option>
+                <option value="AJUSTE+">➕ Ajuste positivo</option>
+                <option value="AJUSTE-">➖ Ajuste negativo</option>
+              </select>
+            </div>
+            <div class="fld"><label>Cantidad *</label><input type="number" id="sk-qty" min="1" value="1"></div>
+            <div class="fld"><label>Costo unitario ($)</label><input type="number" id="sk-cost" min="0" step="0.01" placeholder="0.00"></div>
+            <div class="fld"><label>Proveedor</label><input type="text" id="sk-prov" placeholder="Nombre proveedor"></div>
+            <div class="fld"><label>Referencia / Factura</label><input type="text" id="sk-ref" placeholder="FAC-001"></div>
+          </div>
+          <button class="btn bp" style="margin-top:14px" onclick="regStock()">✅ Registrar</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cbar"><span class="ctitle">Últimos movimientos</span></div>
+        <table><thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Costo total</th></tr></thead>
+        <tbody id="t-stock"></tbody></table>
+      </div>
+    </section>
+
+    <!-- FINANZAS -->
+    <section class="sec" id="s-finanzas">
+      <div class="ptitle">💰 Egresos y Finanzas</div>
+      <div class="psub">Controle gastos operativos para calcular la utilidad real</div>
+      <div class="kgrid" id="kpi-fin"></div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="cbar"><span class="ctitle">Nuevo egreso</span></div>
+        <div style="padding:18px">
+          <div class="f2">
+            <div class="fld"><label>Tipo</label>
+              <select id="e-tipo">
+                <option>Reposición de Stock</option><option>Renta / Alquiler</option>
+                <option>Servicios (luz, agua, internet)</option><option>Sueldos</option>
+                <option>Mantenimiento de Equipo</option><option>Publicidad</option><option>Otros</option>
+              </select>
+            </div>
+            <div class="fld"><label>Monto ($) *</label><input type="number" id="e-monto" min="0" step="0.01" placeholder="0.00"></div>
+            <div class="fld" style="grid-column:1/-1"><label>Descripción *</label><input type="text" id="e-desc" placeholder="Descripción del gasto…"></div>
+            <div class="fld"><label>Comprobante</label><input type="text" id="e-comp" placeholder="FAC-001"></div>
+            <div class="fld"><label>Método de pago</label>
+              <select id="e-pago"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta Débito</option></select>
+            </div>
+          </div>
+          <button class="btn bp" style="margin-top:14px" onclick="regEgreso()">✅ Registrar egreso</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cbar"><span class="ctitle">Egresos registrados</span></div>
+        <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Monto</th><th>Comprobante</th><th></th></tr></thead>
+        <tbody id="t-egr"></tbody></table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ═══════════════ ALUMNO ═══════════════ -->
+<div id="scr-alumno" class="scr">
+  <div class="acard">
+    <div class="acard-header">
+      <h2>📄 Enviar trabajo para imprimir</h2>
+      <p id="alumno-saludo">Bienvenido</p>
+    </div>
+
+    <!-- Tipo de impresión -->
+    <div class="fld" style="margin-bottom:14px">
+      <label>Tipo de impresión</label>
+      <div id="tipo-grid">
+        <div class="tipo-card sel" onclick="selTipo(this,'laser_bn')">
+          <span class="tc-icon">🖨️</span>
+          <div class="tc-info"><h4>Láser B&N</h4><p>Impresora HP Láser</p></div>
+          <span class="tc-price">$0.50</span>
+        </div>
+        <div class="tipo-card" onclick="selTipo(this,'smart_tank')">
+          <span class="tc-icon">🎨</span>
+          <div class="tc-info"><h4>Color</h4><p>Smart Tank Color</p></div>
+          <span class="tc-price">$2.00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload PDF -->
+    <div class="fld" style="margin-bottom:12px">
+      <label>Selecciona tu archivo PDF</label>
+      <div class="upload-area" id="upload-area">
+        <input type="file" id="input-archivo" accept=".pdf">
+        <div class="up-icon">📁</div>
+        <p>Toca aquí para seleccionar tu PDF</p>
+        <p class="up-file" id="up-filename">Ningún archivo seleccionado</p>
+      </div>
+    </div>
+
+    <!-- Info páginas -->
+    <div class="pags-info" id="pags-info" style="display:none">
+      <div class="pag-box">
+        <div class="pv" id="alumno-pags">0</div>
+        <div class="pl">Páginas</div>
+      </div>
+      <div class="pag-box">
+        <div class="pv" id="alumno-tipo-label">B&N</div>
+        <div class="pl">Tipo</div>
+      </div>
+    </div>
+
+    <!-- Costo -->
+    <div class="cost-display">
+      <div class="cost-label">Costo estimado</div>
+      <div class="cost-val" id="alumno-total">$0.00</div>
+      <div class="cost-sub" id="alumno-cost-sub">Seleccione un archivo para calcular</div>
+    </div>
+
+    <button class="btn bi wf" style="font-size:.95rem;padding:14px" id="btn-enviar" onclick="enviarArchivo()">
+      📤 Enviar al Profr. Cecilio
+    </button>
+    <button onclick="cerrarSesion()" style="display:block;width:100%;margin-top:10px;background:none;border:none;color:var(--ink3);font-size:.77rem;cursor:pointer;font-family:var(--f)">
+      ← Salir / Cambiar usuario
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════ MODALES ═══════════════ -->
+
+<!-- Modal Producto -->
+<div class="ov" id="ov-prod">
+  <div class="modal">
+    <div class="mh"><h2 id="mp-title">Nuevo Producto</h2><button class="xbtn" onclick="closeModal('ov-prod')">✕</button></div>
+    <div class="mb">
+      <div class="fg">
+        <div class="f2">
+          <div class="fld"><label>Nombre *</label><input type="text" id="mp-nom" placeholder="Nombre del producto"></div>
+          <div class="fld"><label>Categoría</label>
+            <select id="mp-cat">
+              <option>Cuadernos</option><option>Lapiceros / Lápices</option><option>Marcadores</option>
+              <option>Tijeras / Pegamento</option><option>Papel / Cartulina</option>
+              <option>Folders</option><option>Arte / Manualidades</option><option>Dulces</option><option>Otros</option>
+            </select>
+          </div>
+          <div class="fld"><label>Precio costo ($) *</label><input type="number" id="mp-cost" min="0" step="0.01" placeholder="0.00"></div>
+          <div class="fld"><label>Precio venta ($) *</label><input type="number" id="mp-venta" min="0" step="0.01" placeholder="0.00"></div>
+          <div class="fld"><label>Stock inicial</label><input type="number" id="mp-stk" min="0" value="0"></div>
+          <div class="fld"><label>Stock mínimo (alerta)</label><input type="number" id="mp-min" min="0" value="5"></div>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bs" onclick="closeModal('ov-prod')">Cancelar</button>
+      <button class="btn bp" onclick="saveProd()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Scanner -->
+<div class="ov" id="ov-scan">
+  <div class="modal">
+    <div class="mh"><h2>📷 Escanear QR</h2><button class="xbtn" onclick="closeScanner()">✕</button></div>
+    <div class="mb">
+      <p style="font-size:.82rem;color:var(--ink3);text-align:center;margin-bottom:12px">Apunte la cámara al QR del producto</p>
+      <div class="qr-area">
+        <video id="qr-video" autoplay playsinline muted></video>
+        <canvas id="qr-canvas"></canvas>
+        <div class="qr-ov"><div class="qr-fr"></div></div>
+        <div class="qr-st" id="qr-st">Iniciando cámara…</div>
+      </div>
+      <div id="qr-ok" style="display:none;margin-top:12px;background:var(--grl);border-radius:var(--rs);padding:11px;text-align:center">
+        <div style="font-size:1.1rem">✅</div>
+        <div style="font-weight:700;margin-top:3px" id="qr-ok-name"></div>
+      </div>
+    </div>
+    <div class="mf"><button class="btn bs" onclick="closeScanner()">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- Modal Ver QR -->
+<div class="ov" id="ov-qr">
+  <div class="modal">
+    <div class="mh"><h2 id="qr-title">Código QR</h2><button class="xbtn" onclick="closeModal('ov-qr')">✕</button></div>
+    <div class="mb" style="text-align:center">
+      <div id="qr-img-wrap" style="margin:0 auto 14px;display:inline-block"></div>
+      <p style="font-size:.82rem;color:var(--ink3)" id="qr-info"></p>
+      <div style="margin-top:14px"><button class="btn bs" onclick="printQR()">🖨️ Imprimir etiqueta</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Éxito Alumno -->
+<div class="ov" id="ov-exito">
+  <div class="modal">
+    <div class="mb" style="text-align:center;padding:36px">
+      <div style="font-size:3rem">✅</div>
+      <h2 style="margin-top:12px;font-size:1.2rem;font-weight:800">¡Archivo enviado!</h2>
+      <p style="color:var(--ink3);font-size:.84rem;margin-top:6px">Tu documento fue enviado al Profr. Cecilio.<br>Espera a que te llame para recogerlo.</p>
+      <button class="btn bi wf" style="margin-top:20px" onclick="closeModal('ov-exito');resetAlumno()">Enviar otro archivo</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script type="module" src="js/app.js"></script>
 </body>
 </html>

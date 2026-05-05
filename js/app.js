@@ -11,6 +11,7 @@ import {
   actualizarProducto,
   eliminarRegistro,
 } from "./database.js";
+import { subirFotoProducto, eliminarFotoProducto } from "./database_additions.js";
 
 // ─── PRECIOS (misma config que el original) ────────────────────────
 const PRECIOS = { laser_bn: 0.50, smart_tank: 2.00 };
@@ -584,17 +585,29 @@ function renderProdList(){
 window.openProdModal = (id=null) => {
   editProdId = id;
   document.getElementById('mp-title').textContent = id ? 'Editar Producto' : 'Nuevo Producto';
+  // Limpiar preview foto
+  document.getElementById('mp-foto-preview').style.display='none';
+  document.getElementById('mp-foto-placeholder').style.display='flex';
+  document.getElementById('mp-foto-input').value='';
+
   if(id){
     const p = inventario.find(p=>p.id===id);
     if(!p) return;
     document.getElementById('mp-nom').value   = p.nombre||'';
     document.getElementById('mp-cat').value   = p.categoria||'Otros';
+    document.getElementById('mp-desc').value  = p.descripcion||'';
     document.getElementById('mp-cost').value  = p.costo||0;
     document.getElementById('mp-venta').value = p.venta||0;
     document.getElementById('mp-stk').value   = p.stock||0;
     document.getElementById('mp-min').value   = p.stockMin||5;
+    // Mostrar foto existente si tiene
+    if(p.fotoURL){
+      document.getElementById('mp-foto-preview').src = p.fotoURL;
+      document.getElementById('mp-foto-preview').style.display='block';
+      document.getElementById('mp-foto-placeholder').style.display='none';
+    }
   } else {
-    ['mp-nom','mp-cost','mp-venta'].forEach(i=>document.getElementById(i).value='');
+    ['mp-nom','mp-cost','mp-venta','mp-desc'].forEach(i=>document.getElementById(i).value='');
     document.getElementById('mp-stk').value=0;
     document.getElementById('mp-min').value=5;
   }
@@ -607,12 +620,24 @@ window.saveProd = async () => {
   const costo = parseFloat(document.getElementById('mp-cost').value)||0;
   if(!nom||venta<=0){ toast('Complete campos obligatorios','er'); return; }
 
+  // Subir foto si seleccionaron una
+  const fotoFile = document.getElementById('mp-foto-input').files[0];
+  let fotoURL    = editProdId ? (inventario.find(p=>p.id===editProdId)?.fotoURL||null) : null;
+
+  if(fotoFile){
+    toast('Subiendo foto…','');
+    fotoURL = await subirFotoProducto(fotoFile, nom);
+    if(!fotoURL){ toast('Error subiendo foto, intente de nuevo','er'); return; }
+  }
+
   const datos = {
-    nombre:   nom,
-    categoria:document.getElementById('mp-cat').value,
+    nombre:      nom,
+    categoria:   document.getElementById('mp-cat').value,
+    descripcion: document.getElementById('mp-desc').value.trim(),
     costo, venta,
     stock:    parseInt(document.getElementById('mp-stk').value)||0,
     stockMin: parseInt(document.getElementById('mp-min').value)||5,
+    fotoURL,
   };
 
   try {

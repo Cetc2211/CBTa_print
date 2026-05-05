@@ -549,7 +549,7 @@ function renderProds(){
           <td>
             <div>${stock} uds.</div>
             <div class="sbar"><div class="sbar-f" style="width:${Math.min(100,min>0?stock/min*33:100)}%;background:${stock===0?'var(--red)':stock<=min?'var(--gold)':'var(--green)'}"></div></div>
-          </td>
+           </td>
           <td>${badge}</td>
           <td><div style="display:flex;gap:3px">
             <button class="btn bs bsm bic" onclick="verQR('${p.id}')" title="QR">📷</button>
@@ -654,6 +654,21 @@ window.saveProd = async () => {
   }
 };
 
+// Preview de foto antes de subir
+window.previewFoto = (input) => {
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('mp-foto-preview');
+    const placeholder = document.getElementById('mp-foto-placeholder');
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+    placeholder.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+};
+
 window.delProd = async (id) => {
   if(!confirm('¿Eliminar este producto del inventario? No se puede deshacer.')) return;
   try {
@@ -738,7 +753,8 @@ function renderStockLog(){
   const tbody = document.getElementById('t-stock');
   if(!tbody) return;
   tbody.innerHTML = [...movs].reverse().slice(0,25).map(m=>`<tr>
-    <td>${fd(m.fecha)}</td><td>${m.nomProd}</td>
+    <td>${fd(m.fecha)}</td>
+    <td>${m.nomProd}</td>
     <td><span class="badge ${m.tipo==='ENTRADA'?'bok':m.tipo==='AJUSTE+'?'bsrv':'bout'}">${m.tipo}</span></td>
     <td>${m.qty}</td>
     <td>${m.cost>0?$m(m.qty*m.cost):'—'}</td>
@@ -760,7 +776,8 @@ window.renderHist = () => {
   if(!tbody) return;
   tbody.innerHTML=[...v].reverse().map(v=>`<tr>
     <td><code style="font-family:var(--m);font-size:.77rem">${v.id}</code></td>
-    <td>${fd(v.fecha)}</td><td>${v.hora||'—'}</td>
+    <td>${fd(v.fecha)}</td>
+    <td>${v.hora||'—'}</td>
     <td style="max-width:190px">${(v.items||[]).map(i=>`<div style="font-size:.77rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i.qty||1}× ${i.nombre}</div>`).join('')}</td>
     <td>${v.metodo||'—'}</td>
     <td><strong>${$m(v.total)}</strong></td>
@@ -789,7 +806,9 @@ function renderFinanzas(){
   const tbody = document.getElementById('t-egr');
   if(!tbody) return;
   tbody.innerHTML=[...eg].reverse().map(e=>`<tr>
-    <td>${fd(e.fecha)}</td><td>${e.tipo}</td><td>${e.desc}</td>
+    <td>${fd(e.fecha)}</td>
+    <td>${e.tipo}</td>
+    <td>${e.desc}</td>
     <td><strong>${$m(e.monto)}</strong></td>
     <td><code style="font-size:.72rem">${e.comp||'—'}</code></td>
     <td><button class="btn br bsm bic" onclick="delEgreso('${e.id}')">🗑️</button></td>

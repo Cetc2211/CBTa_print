@@ -355,11 +355,9 @@ tbody tr:hover{background:var(--paper)}
             <div class="cbar">
               <span class="ctitle">🖨️ Impresiones pendientes</span>
               <span class="badge bind" id="cola-venta-count">0</span>
-            </div>
-            <div style="padding:12px 14px;max-height:200px;overflow-y:auto" id="cola-venta-list">
-              <div class="empty">Sin impresiones pendientes</div>
-            </div>
-          </div>
+								<div class="sp"></div>
+					<button class="btn bp bsm" onclick="abrirImpresionManual()">➕ Manual</button>
+
           <!-- Productos inventario -->
           <div class="card">
             <div class="cbar">
@@ -655,6 +653,47 @@ tbody tr:hover{background:var(--paper)}
       <h2 style="margin-top:12px;font-size:1.2rem;font-weight:800">¡Archivo enviado!</h2>
       <p style="color:var(--ink3);font-size:.84rem;margin-top:6px">Tu documento fue enviado al Profr. Cecilio.<br>Espera a que te llame para recogerlo.</p>
       <button class="btn bi wf" style="margin-top:20px" onclick="closeModal('ov-exito');resetAlumno()">Enviar otro archivo</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="ov-imp-manual">
+  <div class="modal">
+    <div class="mh">
+      <h2>🖨️ Impresión Manual</h2>
+      <button class="xbtn" onclick="closeModal('ov-imp-manual')">✕</button>
+    </div>
+    <div class="mb">
+      <p style="font-size:.82rem;color:var(--ink3);margin-bottom:16px">
+        Para clientes sin celular, con USB o cuando la cámara no funciona.
+      </p>
+      <div class="fg">
+        <div class="f2">
+          <div class="fld">
+            <label>Número de páginas *</label>
+            <input type="number" id="im-paginas" min="1" placeholder="0" oninput="calcularManual()">
+          </div>
+          <div class="fld">
+            <label>Tipo de impresión</label>
+            <select id="im-tipo" onchange="calcularManual()">
+              <option value="laser_bn">🖨️ Láser B&N — $0.50/pág</option>
+              <option value="smart_tank">🎨 Color — $2.00/pág</option>
+            </select>
+          </div>
+        </div>
+        <div class="fld">
+          <label>Nombre del cliente (opcional)</label>
+          <input type="text" id="im-usuario" placeholder="Nombre o 'Presencial'">
+        </div>
+        <div style="background:var(--ink);border-radius:var(--rs);padding:16px;text-align:center">
+          <div style="font-size:.72rem;color:#8fa3b1;text-transform:uppercase;letter-spacing:.5px">Total a cobrar</div>
+          <div id="im-total" style="font-size:2rem;font-weight:800;color:#fff;margin-top:4px">$0.00</div>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bs" onclick="closeModal('ov-imp-manual')">Cancelar</button>
+      <button class="btn bi" onclick="agregarImpresionManual()">➕ Agregar al carrito</button>
     </div>
   </div>
 </div>

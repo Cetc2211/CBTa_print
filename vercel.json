@@ -1,7 +1,5 @@
 {
-  "cleanUrls": true,
   "rewrites": [
-    { "source": "/catalogo", "destination": "/catalogo.html" },
-    { "source": "/bienvenida", "destination": "/bienvenida.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

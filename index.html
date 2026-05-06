@@ -249,6 +249,29 @@ tbody tr:hover{background:var(--paper)}
 .cgrid{grid-template-columns:1fr}
 .f2{grid-template-columns:1fr}
 .kgrid{grid-template-columns:1fr 1fr}
+.main{padding-bottom:72px}
+.bot-nav{display:flex!important}
+}
+.bot-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--ink2);border-top:1px solid rgba(255,255,255,.08);
+  z-index:200;padding:6px 0 env(safe-area-inset-bottom,6px);
+  justify-content:space-around;align-items:center;
+}
+.bni{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  font-size:.62rem;color:#8fa3b1;cursor:pointer;
+  background:none;border:none;font-family:var(--f);padding:4px 10px;
+  flex:1;position:relative;
+}
+.bni .bic{font-size:1.35rem;line-height:1}
+.bni.on{color:var(--accent2)}
+.bni .bnb{
+  position:absolute;top:2px;right:18%;
+  background:var(--accent);color:#fff;font-size:.55rem;
+  font-weight:700;padding:1px 5px;border-radius:99px;
+  display:none;
 }
 </style>
 
@@ -326,6 +349,22 @@ tbody tr:hover{background:var(--paper)}
     <div class="nav-sec">Datos</div>
     <button class="nav-btn" onclick="exportar()"><span class="ic">⬇️</span> Exportar</button>
   </nav>
+
+  <!-- BOTTOM NAV MÓVIL -->
+  <nav class="bot-nav" id="bot-nav">
+    <button class="bni on" id="bn-dashboard" onclick="go('dashboard')"><span class="bic">📊</span>Dashboard</button>
+    <button class="bni" id="bn-venta" onclick="go('venta')"><span class="bic">🛒</span>Venta</button>
+    <button class="bni" id="bn-cola" onclick="go('cola')"><span class="bic">🖨️</span>Cola<span class="bnb" id="bn-cola-badge">0</span></button>
+    <button class="bni" id="bn-productos" onclick="go('productos')"><span class="bic">📦</span>Inventario</button>
+    <button class="bni" id="bn-more" onclick="toggleBotMore()"><span class="bic">☰</span>Más</button>
+  </nav>
+  <!-- BOTTOM NAV MORE DRAWER -->
+  <div id="bot-more-drawer" style="display:none;position:fixed;bottom:64px;left:0;right:0;background:var(--ink2);border-top:1px solid rgba(255,255,255,.1);z-index:199;padding:8px 0;">
+    <button class="bni" style="flex-direction:row;gap:10px;font-size:.82rem;padding:12px 20px;width:100%;justify-content:flex-start;" onclick="go('historial');toggleBotMore()"><span class="bic">📋</span>Historial</button>
+    <button class="bni" style="flex-direction:row;gap:10px;font-size:.82rem;padding:12px 20px;width:100%;justify-content:flex-start;" onclick="go('stock');toggleBotMore()"><span class="bic">🔄</span>Ajuste Stock</button>
+    <button class="bni" style="flex-direction:row;gap:10px;font-size:.82rem;padding:12px 20px;width:100%;justify-content:flex-start;" onclick="go('finanzas');toggleBotMore()"><span class="bic">💰</span>Egresos</button>
+    <button class="bni" style="flex-direction:row;gap:10px;font-size:.82rem;padding:12px 20px;width:100%;justify-content:flex-start;" onclick="exportar();toggleBotMore()"><span class="bic">⬇️</span>Exportar</button>
+  </div>
 
   <main class="main">
 <!-- DASHBOARD -->

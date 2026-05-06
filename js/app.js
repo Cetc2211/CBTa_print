@@ -197,6 +197,11 @@ function actualizarColaBadge(){
   if(navBadge){
     navBadge.textContent = n;
     navBadge.style.display = n > 0 ? 'inline-block' : 'none';
+    const bnBadge = document.getElementById('bn-cola-badge');
+    if(bnBadge){
+      bnBadge.textContent = n;
+      bnBadge.style.display = n > 0 ? 'inline-block' : 'none';
+    }
   }
   if(countEl) countEl.textContent = `${n} pendiente${n!==1?'s':''}`;
 }
@@ -207,10 +212,13 @@ function actualizarColaBadge(){
 window.go = (s) => {
   document.querySelectorAll('.sec').forEach(x=>x.classList.remove('on'));
   document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.bni').forEach(x=>x.classList.remove('on'));
   document.getElementById('s-'+s).classList.add('on');
   document.querySelectorAll('.nav-btn').forEach(x=>{
     if(x.getAttribute('onclick')?.includes("'"+s+"'")) x.classList.add('on');
   });
+  const bnMatch = document.getElementById('bn-'+s);
+  if(bnMatch) bnMatch.classList.add('on');
   if(s==='dashboard') renderDash();
   if(s==='productos') renderProds();
   if(s==='historial') renderHist();
@@ -218,6 +226,11 @@ window.go = (s) => {
   if(s==='finanzas')  renderFinanzas();
   if(s==='venta')     { renderProdList(); renderCart(); renderColaVenta(); }
   if(s==='cola')      renderColaFull();
+};
+
+window.toggleBotMore = () => {
+  const d = document.getElementById('bot-more-drawer');
+  if(d) d.style.display = d.style.display === 'none' ? 'block' : 'none';
 };
 window.eliminarDeCola = async (id, nombre) => {
   if(!confirm(`¿Eliminar "${nombre}" de la cola sin cobrar?`)) return;

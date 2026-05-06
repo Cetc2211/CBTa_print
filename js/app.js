@@ -11,6 +11,7 @@ guardarNuevoProducto,
 actualizarProducto,
 eliminarRegistro,
 } from “./database.js”;
+import { subirFotoProducto, eliminarFotoProducto } from “./database_additions.js”;
 
 // ─── PRECIOS (misma config que el original) ────────────────────────
 const PRECIOS = { laser_bn: 0.50, smart_tank: 2.00 };
@@ -58,8 +59,13 @@ document.getElementById(‘dash-sub’).textContent =
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// AUTENTICACIÓN (misma lógica del original + nuevo UI)
+// AUTENTICACIÓN
 // ═══════════════════════════════════════════════════════════════════
+const ADMINS = {
+‘CECILIO’: ‘221182’,
+‘DANIKA’:  ‘130130’,
+};
+
 let roleSelected = null;
 
 window.selRole = (btn, role) => {
@@ -70,9 +76,12 @@ document.getElementById(‘role-select’).style.display = ‘none’;
 const form = document.getElementById(‘login-form’);
 form.style.display = ‘block’;
 document.getElementById(‘login-label’).textContent =
-role === ‘admin’ ? ‘Ingrese contraseña de administrador:’ : ‘Ingrese su nombre:’;
+role === ‘admin’ ? ‘Nombre y contraseña:’ : ‘Ingrese su nombre:’;
 document.getElementById(‘login-nombre’).placeholder =
-role === ‘admin’ ? ‘Contraseña…’ : ‘Su nombre completo…’;
+role === ‘admin’ ? ‘Nombre…’ : ‘Su nombre completo…’;
+// Mostrar campo contraseña solo para admin
+document.getElementById(‘login-pass-wrap’).style.display =
+role === ‘admin’ ? ‘block’ : ‘none’;
 document.getElementById(‘login-nombre’).focus();
 };
 
@@ -81,45 +90,64 @@ roleSelected = null;
 document.getElementById(‘role-select’).style.display = ‘block’;
 document.getElementById(‘login-form’).style.display = ‘none’;
 document.getElementById(‘login-nombre’).value = ‘’;
+document.getElementById(‘login-pass’).value = ‘’;
 };
 
 window.entrar = () => {
-const val = document.getElementById(‘login-nombre’).value.trim();
-if(!val){ toast(‘Ingrese un nombre o contraseña’,‘er’); return; }
+const nombre = document.getElementById(‘login-nombre’).value.trim().toUpperCase();
+if(!nombre){ toast(‘Ingrese su nombre’,‘er’); return; }
 
 if(roleSelected === ‘admin’){
-// El original usaba “CECILIO” como clave — mantenemos compatibilidad
-if(val.toUpperCase() !== ‘CECILIO’){
+const pass = document.getElementById(‘login-pass’).value.trim();
+if(!ADMINS[nombre]){
+toast(‘Usuario no encontrado’,‘er’); return;
+}
+if(ADMINS[nombre] !== pass){
 toast(‘Contraseña incorrecta’,‘er’); return;
 }
-localStorage.setItem(‘usuario_cbta’,‘CECILIO’);
-mostrarAdmin();
+localStorage.setItem(‘usuario_cbta’, nombre);
+mostrarAdmin(nombre);
 } else {
-if(val.length < 2){ toast(‘Nombre demasiado corto’,‘er’); return; }
-localStorage.setItem(‘usuario_cbta’, val.toUpperCase());
-mostrarAlumno(val.toUpperCase());
+if(nombre.length < 2){ toast(‘Nombre demasiado corto’,‘er’); return; }
+localStorage.setItem(‘usuario_cbta’, nombre);
+mostrarAlumno(nombre);
 }
 };
 
-// Enter en input
 document.getElementById(‘login-nombre’)?.addEventListener(‘keydown’, e=>{
+if(e.key===‘Enter’) window.entrar();
+});
+document.getElementById(‘login-pass’)?.addEventListener(‘keydown’, e=>{
 if(e.key===‘Enter’) window.entrar();
 });
 
 function verificarSesion(){
-const user = localStorage.getItem(‘usuario_cbta’);
+const params  = new URLSearchParams(window.location.search);
+const destino = params.get(‘destino’);
+const user    = localStorage.getItem(‘usuario_cbta’);
+
 if(!user){
+// Si viene con ?destino=impresion mostrar login alumno directamente
+if(destino === ‘impresion’){
 showScreen(‘scr-login’);
-} else if(user === ‘CECILIO’){
-mostrarAdmin();
+// Preseleccionar rol alumno
+const btnAlumno = document.querySelector(’.rbtn[onclick*=“alumno”]’);
+if(btnAlumno) btnAlumno.click();
+} else {
+// Redirigir a pantalla de bienvenida
+window.location.replace(’/bienvenida’);
+}
+return;
+} else if(ADMINS[user]){
+mostrarAdmin(user);
 } else {
 mostrarAlumno(user);
 }
 }
 
-function mostrarAdmin(){
+function mostrarAdmin(nombre){
 showScreen(‘scr-admin’);
-document.getElementById(‘admin-nombre’).textContent = ‘Profr. Cecilio’;
+document.getElementById(‘admin-nombre’).textContent = ’Prof. ’ + nombre;
 iniciarAdmin();
 setDate();
 }
@@ -131,7 +159,6 @@ document.getElementById(‘alumno-saludo’).textContent = `Hola, ${nombre} 👋
 
 window.cerrarSesion = () => {
 localStorage.removeItem(‘usuario_cbta’);
-// Detener listeners Firebase si es necesario
 location.reload();
 };
 
@@ -180,10 +207,6 @@ navBadge.textContent = n;
 navBadge.style.display = n > 0 ? ‘inline-block’ : ‘none’;
 }
 if(countEl) countEl.textContent = `${n} pendiente${n!==1?'s':''}`;
-// Badge móvil
-const mnDot = document.getElementById(‘mn-cola-dot’);
-if(mnDot){ mnDot.textContent = n; mnDot.classList.toggle(‘show’, n > 0); }
-
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -203,6 +226,15 @@ if(s===‘stock’)     renderStockSelect();
 if(s===‘finanzas’)  renderFinanzas();
 if(s===‘venta’)     { renderProdList(); renderCart(); renderColaVenta(); }
 if(s===‘cola’)      renderColaFull();
+};
+window.eliminarDeCola = async (id, nombre) => {
+if(!confirm(`¿Eliminar "${nombre}" de la cola sin cobrar?`)) return;
+try {
+await eliminarRegistro(‘cola_impresion’, id);
+toast(‘Eliminado de la cola’,‘ok’);
+} catch(e){
+toast(’Error: ’+e.message,‘er’);
+}
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -324,7 +356,21 @@ const precio = PRECIOS[doc.tipoImpresion]||0.5;
 const total  = (doc.paginas * precio).toFixed(2);
 const label  = LABELS[doc.tipoImpresion]||‘B&N’;
 const fecha  = doc.fecha?.toDate ? doc.fecha.toDate().toLocaleString(‘es-MX’) : ‘—’;
-return `<div class="imp-item card" style="margin-bottom:10px;padding:16px 18px"> <span class="imp-icon" style="font-size:2rem">${doc.tipoImpresion==='smart_tank'?'🎨':'🖨️'}</span> <div class="imp-info"> <div class="imp-name" style="font-size:.9rem">${doc.archivo||'Documento'}</div> <div class="imp-meta">👤 ${doc.usuario} &nbsp;·&nbsp; ${label} &nbsp;·&nbsp; ${doc.paginas} páginas &nbsp;·&nbsp; ${fecha}</div> <div style="margin-top:6px"><span class="badge bpend">⏳ Pendiente</span></div> </div> <div class="imp-actions" style="flex-direction:column;gap:6px"> ${doc.archivoURL?`<a href="${doc.archivoURL}" target="_blank" class="btn bs bsm wf" style="justify-content:center">👁️ Ver PDF</a>`:''} <button class="btn bi bsm wf" style="justify-content:center" onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas},'${label}');go('venta')"> 🛒 Cobrar $${total} </button> </div> </div>`;
+return `<div class="imp-item card" style="margin-bottom:10px;padding:16px 18px"> <span class="imp-icon" style="font-size:2rem">${doc.tipoImpresion==='smart_tank'?'🎨':'🖨️'}</span> <div class="imp-info"> <div class="imp-name" style="font-size:.9rem">${doc.archivo||'Documento'}</div> <div class="imp-meta">👤 ${doc.usuario} &nbsp;·&nbsp; ${label} &nbsp;·&nbsp; ${doc.paginas} páginas &nbsp;·&nbsp; ${fecha}</div> <div style="margin-top:6px"><span class="badge bpend">⏳ Pendiente</span></div> </div> <div class="imp-actions" style="flex-direction:column;gap:6px"> ${doc.archivoURL?`<a href="${doc.archivoURL}" target="_blank" class="btn bs bsm wf" style="justify-content:center">👁️ Ver PDF</a>`:’’}
+<button class="btn bi bsm wf" style="justify-content:center"
+onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas},'${label}');go('venta')">
+🛒 Cobrar $${total}
+</button>
+<button class="btn br bsm wf" style="justify-content:center"
+onclick="eliminarDeCola('${doc.id}','${doc.archivo||'archivo'}')">
+🗑️ Eliminar sin cobrar
+</button>
+
+```
+  </div>
+</div>`;
+```
+
 }).join(’’);
 }
 
@@ -357,10 +403,20 @@ toast(‘✓ ’ + nombre.split(’ ‘).slice(0,3).join(’ ’), ‘ok’);
 
 function addProdToCart(id){
 const p = inventario.find(p=>p.id===id);
-if(!p) return;
-if(p.stock <= 0){ toast(‘Sin stock disponible’,‘er’); return; }
-window.agregarAlCarrito(id, p.nombre, p.venta, ‘producto’);
+if(!p){ toast(‘Producto no encontrado’,‘er’); return; }
+if((p.stock||0) <= 0){ toast(‘Sin stock disponible’,‘er’); return; }
+const idx = carrito.findIndex(c=>c.id===id && c.tipo===‘producto’);
+if(idx>=0){
+if(carrito[idx].qty >= (p.stock||0)){ toast(‘Stock máximo’,‘er’); return; }
+carrito[idx].qty++;
+carrito[idx].precio = (p.venta||0) * carrito[idx].qty;
+} else {
+carrito.push({ id:p.id, nombre:p.nombre, precio:p.venta||0, tipo:‘producto’, qty:1 });
 }
+renderCart();
+toast(’✓ ‘+p.nombre.split(’ ‘).slice(0,3).join(’ ’),‘ok’);
+}
+window.addProdToCart = addProdToCart;
 
 function renderCart(){
 const c     = document.getElementById(‘cart-items’);
@@ -496,17 +552,29 @@ return `<button onclick="${ok?`addProdToCart(’${p.id}’)`:''}" style="display
 window.openProdModal = (id=null) => {
 editProdId = id;
 document.getElementById(‘mp-title’).textContent = id ? ‘Editar Producto’ : ‘Nuevo Producto’;
+// Limpiar preview foto
+document.getElementById(‘mp-foto-preview’).style.display=‘none’;
+document.getElementById(‘mp-foto-placeholder’).style.display=‘flex’;
+document.getElementById(‘mp-foto-input’).value=’’;
+
 if(id){
 const p = inventario.find(p=>p.id===id);
 if(!p) return;
 document.getElementById(‘mp-nom’).value   = p.nombre||’’;
 document.getElementById(‘mp-cat’).value   = p.categoria||‘Otros’;
+document.getElementById(‘mp-desc’).value  = p.descripcion||’’;
 document.getElementById(‘mp-cost’).value  = p.costo||0;
 document.getElementById(‘mp-venta’).value = p.venta||0;
 document.getElementById(‘mp-stk’).value   = p.stock||0;
 document.getElementById(‘mp-min’).value   = p.stockMin||5;
+// Mostrar foto existente si tiene
+if(p.fotoURL){
+document.getElementById(‘mp-foto-preview’).src = p.fotoURL;
+document.getElementById(‘mp-foto-preview’).style.display=‘block’;
+document.getElementById(‘mp-foto-placeholder’).style.display=‘none’;
+}
 } else {
-[‘mp-nom’,‘mp-cost’,‘mp-venta’].forEach(i=>document.getElementById(i).value=’’);
+[‘mp-nom’,‘mp-cost’,‘mp-venta’,‘mp-desc’].forEach(i=>document.getElementById(i).value=’’);
 document.getElementById(‘mp-stk’).value=0;
 document.getElementById(‘mp-min’).value=5;
 }
@@ -519,12 +587,24 @@ const venta = parseFloat(document.getElementById(‘mp-venta’).value)||0;
 const costo = parseFloat(document.getElementById(‘mp-cost’).value)||0;
 if(!nom||venta<=0){ toast(‘Complete campos obligatorios’,‘er’); return; }
 
+// Subir foto si seleccionaron una
+const fotoFile = document.getElementById(‘mp-foto-input’).files[0];
+let fotoURL    = editProdId ? (inventario.find(p=>p.id===editProdId)?.fotoURL||null) : null;
+
+if(fotoFile){
+toast(‘Subiendo foto…’,’’);
+fotoURL = await subirFotoProducto(fotoFile, nom);
+if(!fotoURL){ toast(‘Error subiendo foto, intente de nuevo’,‘er’); return; }
+}
+
 const datos = {
-nombre:   nom,
-categoria:document.getElementById(‘mp-cat’).value,
+nombre:      nom,
+categoria:   document.getElementById(‘mp-cat’).value,
+descripcion: document.getElementById(‘mp-desc’).value.trim(),
 costo, venta,
 stock:    parseInt(document.getElementById(‘mp-stk’).value)||0,
 stockMin: parseInt(document.getElementById(‘mp-min’).value)||5,
+fotoURL,
 };
 
 try {
@@ -539,6 +619,21 @@ closeModal(‘ov-prod’);
 } catch(e){
 toast(’Error al guardar: ’+e.message,‘er’);
 }
+};
+
+// Preview de foto antes de subir
+window.previewFoto = (input) => {
+const file = input.files[0];
+if(!file) return;
+const reader = new FileReader();
+reader.onload = e => {
+const preview = document.getElementById(‘mp-foto-preview’);
+const placeholder = document.getElementById(‘mp-foto-placeholder’);
+preview.src = e.target.result;
+preview.style.display = ‘block’;
+placeholder.style.display = ‘none’;
+};
+reader.readAsDataURL(file);
 };
 
 window.delProd = async (id) => {
@@ -627,7 +722,8 @@ const movs = LS.get(‘stockMovs’);
 const tbody = document.getElementById(‘t-stock’);
 if(!tbody) return;
 tbody.innerHTML = […movs].reverse().slice(0,25).map(m=>`<tr>
-<td>${fd(m.fecha)}</td><td>${m.nomProd}</td>
+<td>${fd(m.fecha)}</td>
+<td>${m.nomProd}</td>
 <td><span class="badge ${m.tipo==='ENTRADA'?'bok':m.tipo==='AJUSTE+'?'bsrv':'bout'}">${m.tipo}</span></td>
 <td>${m.qty}</td>
 <td>${m.cost>0?$m(m.qty*m.cost):’—’}</td>
@@ -648,7 +744,7 @@ if(h) v=v.filter(x=>x.fecha<=h);
 if(q) v=v.filter(x=>(x.items||[]).some(i=>i.nombre?.toLowerCase().includes(q))||x.metodo?.toLowerCase().includes(q));
 const tbody = document.getElementById(‘t-hist’);
 if(!tbody) return;
-tbody.innerHTML=[…v].reverse().map(v=>`<tr> <td><code style="font-family:var(--m);font-size:.77rem">${v.id}</code></td> <td>${fd(v.fecha)}</td><td>${v.hora||'—'}</td> <td style="max-width:190px">${(v.items||[]).map(i=>`<div style="font-size:.77rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i.qty||1}× ${i.nombre}</div>`).join(’’)}</td>
+tbody.innerHTML=[…v].reverse().map(v=>`<tr> <td><code style="font-family:var(--m);font-size:.77rem">${v.id}</code></td> <td>${fd(v.fecha)}</td> <td>${v.hora||'—'}</td> <td style="max-width:190px">${(v.items||[]).map(i=>`<div style="font-size:.77rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i.qty||1}× ${i.nombre}</div>`).join(’’)}</td>
 <td>${v.metodo||’—’}</td>
 <td><strong>${$m(v.total)}</strong></td>
 
@@ -677,7 +773,9 @@ if(kf) kf.innerHTML=[
 const tbody = document.getElementById(‘t-egr’);
 if(!tbody) return;
 tbody.innerHTML=[…eg].reverse().map(e=>`<tr>
-<td>${fd(e.fecha)}</td><td>${e.tipo}</td><td>${e.desc}</td>
+<td>${fd(e.fecha)}</td>
+<td>${e.tipo}</td>
+<td>${e.desc}</td>
 <td><strong>${$m(e.monto)}</strong></td>
 <td><code style="font-size:.72rem">${e.comp||’—’}</code></td>
 <td><button class="btn br bsm bic" onclick="delEgreso('${e.id}')">🗑️</button></td>
@@ -857,15 +955,40 @@ window.agregarAlCarritoImpresion = window.addImpToCart;
 // ═══════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════
-
-// ─── NAVEGACIÓN MÓVIL ──────────────────────────────────────────────
-window.setMobileNav = (btn) => {
-document.querySelectorAll(’.mn-btn’).forEach(b=>b.classList.remove(‘on’));
-if(btn) btn.classList.add(‘on’);
+window.abrirImpresionManual = () => {
+document.getElementById(‘ov-imp-manual’).classList.add(‘on’);
+document.getElementById(‘im-paginas’).value=’’;
+document.getElementById(‘im-usuario’).value=’’;
+document.getElementById(‘im-tipo’).value=‘laser_bn’;
+calcularManual();
 };
 
-window.showMobileMenu = () => {
-document.getElementById(‘ov-more’).classList.add(‘on’);
+window.calcularManual = () => {
+const pags  = parseInt(document.getElementById(‘im-paginas’)?.value)||0;
+const tipo  = document.getElementById(‘im-tipo’)?.value||‘laser_bn’;
+const total = pags*(PRECIOS[tipo]||0.5);
+const el    = document.getElementById(‘im-total’);
+if(el) el.textContent=`$${total.toFixed(2)}`;
+};
+
+window.agregarImpresionManual = () => {
+const pags    = parseInt(document.getElementById(‘im-paginas’).value)||0;
+const tipo    = document.getElementById(‘im-tipo’).value;
+const usuario = document.getElementById(‘im-usuario’).value.trim()||‘Presencial’;
+if(pags<=0){ toast(‘Ingrese número de páginas’,‘er’); return; }
+const precio  = pags*(PRECIOS[tipo]||0.5);
+const label   = LABELS[tipo]||‘B&N’;
+carrito.push({
+id:‘manual-’+Date.now(),
+nombre:`🖨️ Impresión ${pags} págs (${label})`,
+precio, tipo:‘impresion’,
+usuarioAlumno:usuario,
+numPags:pags, labelServicio:label, esManual:true,
+});
+renderCart();
+closeModal(‘ov-imp-manual’);
+go(‘venta’);
+toast(`✓ Impresión manual — $${precio.toFixed(2)}`,‘ok’);
 };
 
 document.addEventListener(‘DOMContentLoaded’, () => {

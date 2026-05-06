@@ -182,12 +182,8 @@ body{font-family:var(--f);background:var(--paper);color:var(--ink);min-height:10
 
 <!-- Firebase -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { firebaseConfig } from "./js/firebase-config.js";
-
-const app = initializeApp(firebaseConfig);
-const db  = getFirestore(app);
+import { collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { db } from "./js/firebase-config.js";
 
 let productos = [];
 let catActual = 'todas';

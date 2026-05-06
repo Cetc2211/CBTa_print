@@ -62,10 +62,11 @@ export const actualizarProducto = async (id, datos) => {
 export const procesarCobroVenta = async (carrito) => {
     for (const item of carrito) {
         if (item.tipo === 'producto') {
+            const qty = Number(item.qty) || 1;
             await updateDoc(doc(db, "inventario", item.id), { 
-                stock: increment(-1), 
+                stock: increment(-qty), 
                 totalDia: increment(item.precio), 
-                ventasHistoricas: increment(1) 
+                ventasHistoricas: increment(qty) 
             });
         } else if (item.tipo === 'impresion') {
             // 1. Registrar el ingreso
@@ -87,7 +88,9 @@ export const procesarCobroVenta = async (carrito) => {
             }
 
             // 3. Eliminar de la cola
-            await deleteDoc(doc(db, "cola_impresion", item.id));
+            if (!item.esManual && item.id) {
+                await deleteDoc(doc(db, "cola_impresion", item.id));
+            }
         }
     }
     return true;

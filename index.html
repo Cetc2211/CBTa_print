@@ -143,7 +143,7 @@ tbody tr:hover{background:var(--paper)}
 
 /* SEARCH */
 .sb{position:relative}.sb input{padding-left:32px;width:100%}
-.sb::before{content:‘🔍’;position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:.8rem;pointer-events:none}
+.sb::before{content:'🔍';position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:.8rem;pointer-events:none}
 
 /* VENTA LAYOUT */
 .vlay{display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start}
@@ -264,8 +264,6 @@ tbody tr:hover{background:var(--paper)}
       <p>Sistema de Impresiones y Papelería</p>
       <span class="ltag">POS Pro v3.0</span>
     </div>
-
-```
 <div id="role-select">
   <p style="font-size:.78rem;color:var(--ink3);margin-bottom:12px;font-weight:600">¿Quién ingresa?</p>
   <button class="rbtn" onclick="selRole(this,'admin')">
@@ -287,7 +285,6 @@ tbody tr:hover{background:var(--paper)}
   <button class="lbtn" onclick="entrar()">Entrar →</button>
   <button onclick="resetLogin()" style="display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--ink3);font-size:.78rem;cursor:pointer;font-family:var(--f)">← Volver</button>
 </div>
-```
 
   </div>
 </div>
@@ -331,8 +328,6 @@ tbody tr:hover{background:var(--paper)}
   </nav>
 
   <main class="main">
-
-```
 <!-- DASHBOARD -->
 <section class="sec on" id="s-dashboard">
   <div class="ptitle">📊 Dashboard</div>
@@ -414,7 +409,7 @@ tbody tr:hover{background:var(--paper)}
       <div class="cart-items" id="cart-items"><div class="empty">Carrito vacío</div></div>
       <div class="ctot" id="ctot" style="display:none">
         <div class="trow"><span>Subtotal</span><span id="t-sub">$0.00</span></div>
-        <div class="trow"><span>IVA (servicios)</span><span id="t-iva">$0.00</span></div>
+        <div class="trow"><span>IVA adicional</span><span id="t-iva">$0.00</span></div>
         <div class="trow big"><span>TOTAL</span><span id="t-tot">$0.00</span></div>
       </div>
       <div class="cfoot">
@@ -543,7 +538,6 @@ tbody tr:hover{background:var(--paper)}
     </table>
   </div>
 </section>
-```
 
   </main>
 </div>
@@ -556,8 +550,6 @@ tbody tr:hover{background:var(--paper)}
       <h2>📄 Enviar trabajo para imprimir</h2>
       <p id="alumno-saludo">Bienvenido</p>
     </div>
-
-```
 <!-- Tipo de impresión -->
 <div class="fld" style="margin-bottom:14px">
   <label>Tipo de impresión</label>
@@ -611,7 +603,6 @@ tbody tr:hover{background:var(--paper)}
 <button onclick="cerrarSesion()" style="display:block;width:100%;margin-top:10px;background:none;border:none;color:var(--ink3);font-size:.77rem;cursor:pointer;font-family:var(--f)">
   ← Salir / Cambiar usuario
 </button>
-```
 
   </div>
 </div>
@@ -625,8 +616,6 @@ tbody tr:hover{background:var(--paper)}
     <div class="mh"><h2 id="mp-title">Nuevo Producto</h2><button class="xbtn" onclick="closeModal('ov-prod')">✕</button></div>
     <div class="mb">
       <div class="fg">
-
-```
     <!-- FOTO DEL PRODUCTO -->
     <div class="fld">
       <label>Foto del producto</label>
@@ -669,7 +658,6 @@ tbody tr:hover{background:var(--paper)}
   <button class="btn bs" onclick="closeModal('ov-prod')">Cancelar</button>
   <button class="btn bp" onclick="saveProd()">💾 Guardar producto</button>
 </div>
-```
 
   </div>
 </div>

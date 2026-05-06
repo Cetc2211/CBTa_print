@@ -680,7 +680,10 @@ tbody tr:hover{background:var(--paper)}
         <div style="font-weight:700;margin-top:3px" id="qr-ok-name"></div>
       </div>
     </div>
-    <div class="mf"><button class="btn bs" onclick="closeScanner()">Cerrar</button></div>
+    <div class="mf">
+      <button class="btn bs" id="qr-switch-btn" onclick="toggleScannerCamera()">🔄 Cámara frontal</button>
+      <button class="btn bs" onclick="closeScanner()">Cerrar</button>
+    </div>
   </div>
 </div>
 

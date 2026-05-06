@@ -124,6 +124,11 @@ document.getElementById('login-pass')?.addEventListener('keydown', e=>{
 function verificarSesion(){
   const user = localStorage.getItem('usuario_cbta');
   if(!user){
+    const params = new URLSearchParams(location.search);
+    if(!params.get('destino') && !params.get('admin')){
+      location.replace('/bienvenida.html');
+      return;
+    }
     showScreen('scr-login');
   } else if(ADMINS[user]){
     mostrarAdmin(user);

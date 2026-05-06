@@ -1,9 +1,9 @@
 <!DOCTYPE html>
+
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <!-- Ícono para pantalla de inicio -->
 <link rel="apple-touch-icon" href="/icon.png">
 <link rel="icon" type="image/png" href="/icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -35,11 +35,7 @@
 html{font-size:15px}
 body{font-family:var(--f);background:var(--paper);color:var(--ink);min-height:100vh;overflow-x:hidden;-webkit-overflow-scrolling:touch}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--paper2)}::-webkit-scrollbar-thumb{background:var(--paper3);border-radius:99px}
-
-/* SCREENS */
 .scr{display:none;min-height:100vh}.scr.on{display:block}
-
-/* LOGIN */
 #scr-login{display:none;align-items:center;justify-content:center;background:var(--ink);padding:24px;min-height:100vh}
 #scr-login.on{display:flex;flex-direction:column}
 .lcard{background:#fff;border-radius:24px;padding:36px 32px;width:100%;max-width:400px;box-shadow:var(--shl)}
@@ -56,8 +52,6 @@ body{font-family:var(--f);background:var(--paper);color:var(--ink);min-height:10
 .linp:focus{border-color:var(--accent)}
 .lbtn{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:var(--rs);font-family:var(--f);font-size:.95rem;font-weight:700;cursor:pointer;transition:background .15s}
 .lbtn:hover{background:var(--accent2)}
-
-/* ADMIN LAYOUT */
 #scr-admin{display:none}
 #scr-admin.on{display:grid;grid-template-columns:220px 1fr;grid-template-rows:54px 1fr;min-height:100vh}
 .topbar{grid-column:1/-1;background:var(--ink);display:flex;align-items:center;gap:14px;padding:0 20px;position:sticky;top:0;z-index:100}
@@ -66,7 +60,6 @@ body{font-family:var(--f);background:var(--paper);color:var(--ink);min-height:10
 .topbar-user{margin-left:auto;font-size:.78rem;color:#8fa3b1;display:flex;align-items:center;gap:10px}
 .logout-btn{background:rgba(255,255,255,.08);border:none;color:#8fa3b1;font-family:var(--f);font-size:.73rem;padding:5px 10px;border-radius:6px;cursor:pointer}
 .logout-btn:hover{color:#fff;background:rgba(255,255,255,.14)}
-
 .sidebar{background:var(--ink2);padding:14px 10px;display:flex;flex-direction:column;gap:2px;position:sticky;top:54px;height:calc(100vh - 54px);overflow-y:auto}
 .nav-sec{font-size:.66rem;font-weight:700;color:#4a6070;text-transform:uppercase;letter-spacing:1px;padding:10px 10px 4px}
 .nav-btn{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:var(--rs);cursor:pointer;font-size:.84rem;color:#8fa3b1;transition:all .15s;border:none;background:none;width:100%;text-align:left;font-family:var(--f)}
@@ -74,13 +67,10 @@ body{font-family:var(--f);background:var(--paper);color:var(--ink);min-height:10
 .nav-btn.on{background:var(--accent);color:#fff;font-weight:600}
 .nav-btn .ic{font-size:1rem;width:18px;text-align:center;flex-shrink:0}
 .badge-count{margin-left:auto;background:var(--red);color:#fff;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:99px;min-width:20px;text-align:center}
-
 .main{padding:24px;overflow-y:auto;max-height:calc(100vh - 54px)}
 .sec{display:none}.sec.on{display:block}
 .ptitle{font-size:1.4rem;font-weight:800;margin-bottom:2px;letter-spacing:-.3px}
 .psub{font-size:.84rem;color:var(--ink3);margin-bottom:20px}
-
-/* KPI CARDS */
 .kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
 .kcard{background:#fff;border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh);border-left:4px solid var(--accent)}
 .kcard.t{border-left-color:var(--teal)}.kcard.g{border-left-color:var(--gold)}
@@ -89,13 +79,9 @@ body{font-family:var(--f);background:var(--paper);color:var(--ink);min-height:10
 .kic{font-size:1.6rem;display:block;margin-bottom:6px}
 .kval{font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
 .klbl{font-size:.7rem;color:var(--ink3);margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-
-/* CARDS */
 .card{background:#fff;border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
 .cbar{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--paper2)}
 .ctitle{font-weight:700;font-size:.9rem}.sp{flex:1}
-
-/* TABLES */
 table{width:100%;border-collapse:collapse;font-size:.82rem}
 thead tr{background:var(--paper2)}
 th{padding:9px 13px;text-align:left;font-weight:600;font-size:.7rem;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
@@ -103,14 +89,10 @@ td{padding:9px 13px;border-bottom:1px solid var(--paper2);vertical-align:middle}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:var(--paper)}
 .empty{text-align:center;padding:40px;color:var(--ink3);font-size:.84rem}
-
-/* BADGES */
 .badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:99px;font-size:.72rem;font-weight:600}
 .bok{background:var(--grl);color:var(--green)}.blow{background:var(--gl);color:var(--gold)}
 .bout{background:var(--rl);color:var(--red)}.bsrv{background:var(--bl);color:var(--blue)}
 .bind{background:var(--il);color:var(--indigo)}.bpend{background:var(--gl);color:var(--gold)}
-
-/* BUTTONS */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--rs);font-family:var(--f);font-size:.84rem;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
 .bp{background:var(--accent);color:#fff}.bp:hover{background:var(--accent2)}
 .bs{background:var(--paper2);color:var(--ink2)}.bs:hover{background:var(--paper3)}
@@ -119,19 +101,14 @@ tbody tr:hover{background:var(--paper)}
 .bi{background:var(--indigo);color:#fff}.bi:hover{opacity:.88}
 .bsm{padding:5px 10px;font-size:.78rem}.bic{padding:7px}
 .wf{width:100%;justify-content:center}
-
-/* MODAL */
 .ov{position:fixed;inset:0;background:rgba(15,25,35,.54);z-index:200;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)}
 .ov.on{display:flex}
 .modal{background:#fff;border-radius:var(--r);width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-shadow:var(--shl);animation:mup .18s ease}
-.modal-lg{max-width:660px}
 @keyframes mup{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 .mh{padding:18px 22px 0;display:flex;align-items:center;justify-content:space-between}
 .mh h2{font-size:1.05rem;font-weight:700}
 .mb{padding:18px 22px}.mf{padding:0 22px 18px;display:flex;gap:8px;justify-content:flex-end}
 .xbtn{background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--ink3)}
-
-/* FORMS */
 .fg{display:flex;flex-direction:column;gap:12px}
 .f2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .fld{display:flex;flex-direction:column;gap:4px}
@@ -139,12 +116,8 @@ tbody tr:hover{background:var(--paper)}
 .fld input,.fld select,.fld textarea{padding:9px 11px;border:1.5px solid var(--paper3);border-radius:var(--rs);font-family:var(--f);font-size:.84rem;color:var(--ink);background:#fff;outline:none;transition:border-color .15s}
 .fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--accent)}
 .hint{font-size:.72rem;color:var(--ink3)}
-
-/* SEARCH */
 .sb{position:relative}.sb input{padding-left:32px;width:100%}
 .sb::before{content:'🔍';position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:.8rem;pointer-events:none}
-
-/* VENTA LAYOUT */
 .vlay{display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start}
 .cart{background:#fff;border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;position:sticky;top:0}
 .cart-head{background:var(--ink);color:#fff;padding:13px 16px;font-weight:700;font-size:.9rem;display:flex;align-items:center;justify-content:space-between}
@@ -162,14 +135,10 @@ tbody tr:hover{background:var(--paper)}
 .trow{display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:5px;color:var(--ink3)}
 .trow.big{font-size:1.05rem;font-weight:800;color:var(--ink);margin-top:7px;padding-top:7px;border-top:1px solid var(--paper2)}
 .cfoot{padding:11px 16px;border-top:1px solid var(--paper2);display:flex;flex-direction:column;gap:7px}
-
-/* PAGO BTNS */
 .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
 .pbtn{background:var(--paper2);border:2px solid transparent;border-radius:var(--rs);padding:8px 4px;cursor:pointer;font-size:.75rem;font-weight:600;text-align:center;transition:all .15s;font-family:var(--f)}
 .pbtn:hover{border-color:var(--accent);color:var(--accent)}
 .pbtn.sel{background:var(--al);border-color:var(--accent);color:var(--accent)}
-
-/* COLA IMPRESION */
 .imp-item{background:var(--paper);border:1.5px solid var(--paper3);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:8px;transition:border-color .15s}
 .imp-item:hover{border-color:var(--indigo)}
 .imp-item .imp-icon{font-size:1.8rem;flex-shrink:0}
@@ -177,8 +146,6 @@ tbody tr:hover{background:var(--paper)}
 .imp-item .imp-name{font-size:.82rem;font-weight:700;color:var(--indigo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .imp-item .imp-meta{font-size:.72rem;color:var(--ink3);margin-top:2px}
 .imp-item .imp-actions{display:flex;gap:6px;flex-shrink:0}
-
-/* ALUMNO PANEL */
 #scr-alumno{display:none;align-items:center;justify-content:center;min-height:100vh;background:var(--ink);padding:20px}
 #scr-alumno.on{display:flex;flex-direction:column}
 .acard{background:#fff;border-radius:24px;padding:28px 24px;width:100%;max-width:420px;box-shadow:var(--shl)}
@@ -205,55 +172,68 @@ tbody tr:hover{background:var(--paper)}
 .pag-box{flex:1;background:var(--paper2);border-radius:var(--rs);padding:10px;text-align:center}
 .pag-box .pv{font-size:1.3rem;font-weight:800;color:var(--indigo)}
 .pag-box .pl{font-size:.68rem;color:var(--ink3);font-weight:600;text-transform:uppercase}
-
-/* QR SCANNER */
 .qr-area{background:#000;border-radius:var(--r);overflow:hidden;position:relative;aspect-ratio:1;max-width:270px;margin:0 auto}
 #qr-video{width:100%;height:100%;object-fit:cover;display:block}
 #qr-canvas{display:none}
 .qr-ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .qr-fr{width:60%;height:60%;border:3px solid var(--accent2);border-radius:10px}
 .qr-st{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.72);color:#fff;padding:7px;text-align:center;font-size:.77rem}
-
-/* CHARTS */
 .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
 .ch-card{background:#fff;border-radius:var(--r);padding:18px;box-shadow:var(--sh)}
 .ch-card h3{font-size:.86rem;font-weight:700;color:var(--ink2);margin-bottom:12px}
 .ch-wrap{position:relative;height:185px}
-
-/* QR THUMB */
 .qr-th{width:50px;height:50px;border-radius:6px;border:1px solid var(--paper3);cursor:pointer}
-
-/* STOCK BAR */
 .sbar{height:5px;background:var(--paper3);border-radius:99px;overflow:hidden;margin-top:3px}
 .sbar-f{height:100%;border-radius:99px;background:var(--green)}
-
-/* TOAST */
-.toasts{position:fixed;bottom:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:7px}
+.toasts{position:fixed;bottom:72px;right:20px;z-index:999;display:flex;flex-direction:column;gap:7px}
 .toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:var(--rs);font-size:.84rem;font-weight:500;animation:tin .22s ease;max-width:280px;box-shadow:var(--shl)}
 .toast.ok{background:var(--green)}.toast.er{background:var(--red)}.toast.wa{background:var(--gold)}
 @keyframes tin{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
-
-/* ALERT BANNER */
 .al-ban{background:var(--rl);border:1px solid #f5c2be;border-radius:var(--rs);padding:10px 14px;margin-bottom:14px;font-size:.82rem;color:var(--red);display:none;align-items:center;gap:8px}
 .al-ban.show{display:flex}
-
-/* COLA BADGE (topbar) */
 .cola-badge{background:var(--red);color:#fff;font-size:.65rem;font-weight:700;padding:2px 6px;border-radius:99px;min-width:18px;text-align:center;display:none}
 .cola-badge.show{display:inline-block}
 
+/* ─── NAVEGACIÓN MÓVIL ─────────────────────────────────── */
+.mobile-nav{
+display:none;
+position:fixed;bottom:0;left:0;right:0;
+background:var(–ink2);height:62px;z-index:150;
+border-top:1px solid rgba(255,255,255,.08);
+justify-content:space-around;align-items:center;padding:0 4px;
+}
+.mn-btn{
+display:flex;flex-direction:column;align-items:center;
+gap:2px;padding:6px 8px;border:none;background:none;
+color:#8fa3b1;cursor:pointer;font-family:var(–f);
+font-size:.58rem;font-weight:600;text-transform:uppercase;
+letter-spacing:.3px;border-radius:var(–rs);transition:all .15s;
+flex:1;position:relative;
+}
+.mn-btn.on{color:var(–accent2)}
+.mn-btn .mni{font-size:1.3rem;line-height:1}
+.mn-dot{position:absolute;top:4px;right:calc(50% - 14px);background:var(–red);color:#fff;
+font-size:.55rem;font-weight:700;padding:1px 4px;border-radius:99px;display:none}
+.mn-dot.show{display:block}
+
 @media(max-width:768px){
-  #scr-admin.on{grid-template-columns:1fr}
-  .sidebar{display:none}
-  .vlay{grid-template-columns:1fr}
-  .cgrid{grid-template-columns:1fr}
-  .f2{grid-template-columns:1fr}
-  .kgrid{grid-template-columns:1fr 1fr}
+#scr-admin.on{grid-template-columns:1fr}
+.sidebar{display:none}
+.mobile-nav{display:flex}
+.main{padding:16px;max-height:calc(100vh - 54px - 62px);padding-bottom:8px}
+.vlay{grid-template-columns:1fr}
+.cgrid{grid-template-columns:1fr}
+.f2{grid-template-columns:1fr}
+.kgrid{grid-template-columns:1fr 1fr}
+.toasts{bottom:72px}
 }
 </style>
+
 </head>
 <body>
 
-<!-- ═══════════════ LOGIN ═══════════════ -->
+<!-- LOGIN -->
+
 <div id="scr-login" class="scr">
   <div class="lcard">
     <div class="llogo">
@@ -261,7 +241,6 @@ tbody tr:hover{background:var(--paper)}
       <p>Sistema de Impresiones y Papelería</p>
       <span class="ltag">POS Pro v3.0</span>
     </div>
-
     <div id="role-select">
       <p style="font-size:.78rem;color:var(--ink3);margin-bottom:12px;font-weight:600">¿Quién ingresa?</p>
       <button class="rbtn" onclick="selRole(this,'admin')">
@@ -273,7 +252,6 @@ tbody tr:hover{background:var(--paper)}
         <div><h3>Alumno</h3><p>Enviar archivo para impresión</p></div>
       </button>
     </div>
-
     <div id="login-form" style="display:none">
       <p id="login-label" style="font-size:.82rem;font-weight:600;margin-bottom:10px;color:var(--ink2)"></p>
       <input class="linp" type="text" id="login-nombre" placeholder="Ingrese su nombre…" autocomplete="off">
@@ -283,17 +261,16 @@ tbody tr:hover{background:var(--paper)}
       <button class="lbtn" onclick="entrar()">Entrar →</button>
       <button onclick="resetLogin()" style="display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--ink3);font-size:.78rem;cursor:pointer;font-family:var(--f)">← Volver</button>
     </div>
-
   </div>
 </div>
 
-<!-- ═══════════════ ADMIN ═══════════════ -->
-<div id="scr-admin" class="scr">
+<!-- ADMIN -->
 
+<div id="scr-admin" class="scr">
   <header class="topbar">
     <div class="topbar-logo">🏪 <em>CBTa</em> 130 POS</div>
     <div style="display:flex;align-items:center;gap:8px;margin:0 auto">
-      <span style="font-size:.78rem;color:#5a7184">Cola de impresión:</span>
+      <span style="font-size:.78rem;color:#5a7184">Cola:</span>
       <span class="cola-badge" id="cola-badge">0</span>
       <span id="cola-count" style="font-size:.78rem;color:#8fa3b1">0 pendientes</span>
     </div>
@@ -306,9 +283,7 @@ tbody tr:hover{background:var(--paper)}
   <nav class="sidebar">
     <div class="nav-sec">Principal</div>
     <button class="nav-btn on" onclick="go('dashboard')"><span class="ic">📊</span> Dashboard</button>
-    <button class="nav-btn" onclick="go('venta')">
-      <span class="ic">🛒</span> Nueva Venta
-    </button>
+    <button class="nav-btn" onclick="go('venta')"><span class="ic">🛒</span> Nueva Venta</button>
     <div class="nav-sec">Impresiones</div>
     <button class="nav-btn" onclick="go('cola')">
       <span class="ic">🖨️</span> Cola de Impresión
@@ -325,7 +300,6 @@ tbody tr:hover{background:var(--paper)}
   </nav>
 
   <main class="main">
-
     <!-- DASHBOARD -->
     <section class="sec on" id="s-dashboard">
       <div class="ptitle">📊 Dashboard</div>
@@ -339,216 +313,215 @@ tbody tr:hover{background:var(--paper)}
       <div style="height:16px"></div>
       <div class="card">
         <div class="cbar"><span class="ctitle">🏆 Top productos vendidos</span></div>
-        <table>
-          <thead>
-            <tr><th>#</th><th>Producto</th><th>Vendidos</th><th>Ingresos</th></tr>
-          </thead>
-          <tbody id="top5"></tbody>
-        </table>
+        <table><thead><tr><th>#</th><th>Producto</th><th>Vendidos</th><th>Ingresos</th></tr></thead>
+        <tbody id="top5"></tbody></table>
       </div>
     </section>
 
-    <!-- NUEVA VENTA -->
-    <section class="sec" id="s-venta">
-      <div class="ptitle">🛒 Nueva Venta</div>
-      <div class="psub">Agregue productos del inventario o impresiones pendientes al carrito</div>
-      <div class="vlay">
-        <div>
-          <!-- Cola impresiones rápida -->
-          <div class="card" style="margin-bottom:14px">
-            <div class="cbar">
-              <span class="ctitle">🖨️ Impresiones pendientes</span>
-              <span class="badge bind" id="cola-venta-count">0</span>
-              <div class="sp"></div>
-              <button class="btn bp bsm" onclick="abrirImpresionManual()">➕ Manual</button>
-            </div>
-            <div style="padding:12px 14px;max-height:200px;overflow-y:auto" id="cola-venta-list">
-              <div class="empty">Sin impresiones pendientes</div>
-            </div>
-          </div>
-
-          <!-- Productos inventario -->
-          <div class="card">
-            <div class="cbar">
-              <span class="ctitle">📦 Papelería y productos</span>
-              <div class="sp"></div>
-              <button class="btn bt bsm" onclick="openScanner()">📷 QR</button>
-            </div>
-            <div style="padding:12px 14px">
-              <div class="sb"><input type="text" id="v-buscar" placeholder="Buscar producto…" oninput="renderProdList()"></div>
-              <div id="prod-list" style="margin-top:10px;display:grid;gap:5px;max-height:260px;overflow-y:auto"></div>
-            </div>
-          </div>
-          <!-- Método pago -->
-          <div class="card" style="margin-top:14px">
-            <div class="cbar"><span class="ctitle">💳 Método de pago</span></div>
-            <div style="padding:12px 14px">
-              <div class="pgrid" id="pgrid">
-                <button class="pbtn sel" onclick="selPago(this,'Efectivo')">💵 Efectivo</button>
-                <button class="pbtn" onclick="selPago(this,'T. Débito')">💳 Débito</button>
-                <button class="pbtn" onclick="selPago(this,'T. Crédito')">💳 Crédito</button>
-                <button class="pbtn" onclick="selPago(this,'Transferencia')">📲 Transf.</button>
-                <button class="pbtn" onclick="selPago(this,'QR Digital')">📱 QR</button>
-                <button class="pbtn" onclick="selPago(this,'Fiado')">📝 Fiado</button>
-              </div>
-              <div class="fld" style="margin-top:10px">
-                <label>Notas (opcional)</label>
-                <input type="text" id="v-notas" placeholder="Cliente, referencia…">
-              </div>
-            </div>
-          </div>
+```
+<!-- NUEVA VENTA -->
+<section class="sec" id="s-venta">
+  <div class="ptitle">🛒 Nueva Venta</div>
+  <div class="psub">Agregue productos o impresiones pendientes al carrito</div>
+  <div class="vlay">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="cbar">
+          <span class="ctitle">🖨️ Impresiones pendientes</span>
+          <span class="badge bind" id="cola-venta-count">0</span>
+          <div class="sp"></div>
+          <button class="btn bp bsm" onclick="abrirImpresionManual()">➕ Manual</button>
         </div>
-        <!-- CARRITO -->
-        <div class="cart">
-          <div class="cart-head">
-            <span>🧾 Carrito</span>
-            <span id="cart-count" style="font-size:.72rem;font-weight:400;color:#8fa3b1">0 items</span>
-          </div>
-          <div class="cart-items" id="cart-items"><div class="empty">Carrito vacío</div></div>
-          <div class="ctot" id="ctot" style="display:none">
-            <div class="trow"><span>Subtotal</span><span id="t-sub">$0.00</span></div>
-            <div class="trow"><span>IVA (servicios)</span><span id="t-iva">$0.00</span></div>
-            <div class="trow big"><span>TOTAL</span><span id="t-tot">$0.00</span></div>
-          </div>
-          <div class="cfoot">
-            <button class="btn bp wf" onclick="confirmarVenta()">✅ Cobrar</button>
-            <button class="btn bs wf" onclick="limpiarCarrito()">🗑️ Vaciar</button>
-          </div>
+        <div style="padding:12px 14px;max-height:200px;overflow-y:auto" id="cola-venta-list">
+          <div class="empty">Sin impresiones pendientes</div>
         </div>
       </div>
-    </section>
-
-    <!-- COLA IMPRESION -->
-    <section class="sec" id="s-cola">
-      <div class="ptitle">🖨️ Cola de Impresión</div>
-      <div class="psub">Documentos enviados por alumnos esperando impresión y cobro</div>
-      <div id="cola-full-list"></div>
-    </section>
-
-    <!-- INVENTARIO -->
-    <section class="sec" id="s-productos">
-      <div class="ptitle">📦 Inventario</div>
-      <div class="psub">Gestione productos. El QR se genera automáticamente para escaneo en caja.</div>
       <div class="card">
         <div class="cbar">
-          <div class="sb" style="width:210px"><input type="text" id="p-buscar" placeholder="Buscar…" oninput="renderProds()"></div>
+          <span class="ctitle">📦 Papelería y productos</span>
           <div class="sp"></div>
-          <button class="btn bp" onclick="openProdModal()">➕ Nuevo producto</button>
+          <button class="btn bt bsm" onclick="openScanner()">📷 QR</button>
         </div>
-        <table>
-          <thead>
-            <tr><th>QR</th><th>Nombre</th><th>Precio venta</th><th>Costo</th><th>Stock</th><th>Estado</th><th></th></tr>
-          </thead>
-          <tbody id="t-prods"></tbody>
-        </table>
+        <div style="padding:12px 14px">
+          <div class="sb"><input type="text" id="v-buscar" placeholder="Buscar producto…" oninput="renderProdList()"></div>
+          <div id="prod-list" style="margin-top:10px;display:grid;gap:5px;max-height:260px;overflow-y:auto"></div>
+        </div>
       </div>
-    </section>
-
-    <!-- HISTORIAL -->
-    <section class="sec" id="s-historial">
-      <div class="ptitle">📋 Historial de Ventas</div>
-      <div class="psub">Registro de todas las transacciones cobradas</div>
-      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-        <div class="fld" style="width:140px"><label>Desde</label><input type="date" id="h-desde"></div>
-        <div class="fld" style="width:140px"><label>Hasta</label><input type="date" id="h-hasta"></div>
-        <div class="fld" style="flex:1;min-width:130px"><label>Buscar</label>
-          <div class="sb"><input type="text" id="h-q" placeholder="Producto, alumno…" oninput="renderHist()"></div></div>
-        <div style="align-self:flex-end"><button class="btn bs" onclick="renderHist()">Filtrar</button></div>
-      </div>
-      <div class="card">
-        <table>
-          <thead>
-            <tr><th>Folio</th><th>Fecha</th><th>Hora</th><th>Items</th><th>Pago</th><th>Total</th></tr>
-          </thead>
-          <tbody id="t-hist"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- STOCK -->
-    <section class="sec" id="s-stock">
-      <div class="ptitle">🔄 Ajuste de Stock</div>
-      <div class="psub">Registre entradas de mercancía o correcciones de inventario</div>
-      <div class="card" style="margin-bottom:18px">
-        <div class="cbar"><span class="ctitle">Registrar movimiento</span></div>
-        <div style="padding:18px">
-          <div class="f2">
-            <div class="fld"><label>Producto *</label><select id="sk-prod"><option value="">— Seleccione —</option></select></div>
-            <div class="fld"><label>Tipo</label>
-              <select id="sk-tipo">
-                <option value="ENTRADA">📥 Entrada (compra)</option>
-                <option value="AJUSTE+">➕ Ajuste positivo</option>
-                <option value="AJUSTE-">➖ Ajuste negativo</option>
-              </select>
-            </div>
-            <div class="fld"><label>Cantidad *</label><input type="number" id="sk-qty" min="1" value="1"></div>
-            <div class="fld"><label>Costo unitario ($)</label><input type="number" id="sk-cost" min="0" step="0.01" placeholder="0.00"></div>
-            <div class="fld"><label>Proveedor</label><input type="text" id="sk-prov" placeholder="Nombre proveedor"></div>
-            <div class="fld"><label>Referencia / Factura</label><input type="text" id="sk-ref" placeholder="FAC-001"></div>
+      <div class="card" style="margin-top:14px">
+        <div class="cbar"><span class="ctitle">💳 Método de pago</span></div>
+        <div style="padding:12px 14px">
+          <div class="pgrid" id="pgrid">
+            <button class="pbtn sel" onclick="selPago(this,'Efectivo')">💵 Efectivo</button>
+            <button class="pbtn" onclick="selPago(this,'T. Débito')">💳 Débito</button>
+            <button class="pbtn" onclick="selPago(this,'T. Crédito')">💳 Crédito</button>
+            <button class="pbtn" onclick="selPago(this,'Transferencia')">📲 Transf.</button>
+            <button class="pbtn" onclick="selPago(this,'QR Digital')">📱 QR</button>
+            <button class="pbtn" onclick="selPago(this,'Fiado')">📝 Fiado</button>
           </div>
-          <button class="btn bp" style="margin-top:14px" onclick="regStock()">✅ Registrar</button>
-        </div>
-      </div>
-      <div class="card">
-        <div class="cbar"><span class="ctitle">Últimos movimientos</span></div>
-        <table>
-          <thead>
-            <tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Costo total</th></tr>
-          </thead>
-          <tbody id="t-stock"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- FINANZAS -->
-    <section class="sec" id="s-finanzas">
-      <div class="ptitle">💰 Egresos y Finanzas</div>
-      <div class="psub">Controle gastos operativos para calcular la utilidad real</div>
-      <div class="kgrid" id="kpi-fin"></div>
-      <div class="card" style="margin-bottom:18px">
-        <div class="cbar"><span class="ctitle">Nuevo egreso</span></div>
-        <div style="padding:18px">
-          <div class="f2">
-            <div class="fld"><label>Tipo</label>
-              <select id="e-tipo">
-                <option>Reposición de Stock</option><option>Renta / Alquiler</option>
-                <option>Servicios (luz, agua, internet)</option><option>Sueldos</option>
-                <option>Mantenimiento de Equipo</option><option>Publicidad</option><option>Otros</option>
-              </select>
-            </div>
-            <div class="fld"><label>Monto ($) *</label><input type="number" id="e-monto" min="0" step="0.01" placeholder="0.00"></div>
-            <div class="fld" style="grid-column:1/-1"><label>Descripción *</label><input type="text" id="e-desc" placeholder="Descripción del gasto…"></div>
-            <div class="fld"><label>Comprobante</label><input type="text" id="e-comp" placeholder="FAC-001"></div>
-            <div class="fld"><label>Método de pago</label>
-              <select id="e-pago"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta Débito</option></select>
-            </div>
+          <div class="fld" style="margin-top:10px">
+            <label>Notas (opcional)</label>
+            <input type="text" id="v-notas" placeholder="Cliente, referencia…">
           </div>
-          <button class="btn bp" style="margin-top:14px" onclick="regEgreso()">✅ Registrar egreso</button>
         </div>
       </div>
-      <div class="card">
-        <div class="cbar"><span class="ctitle">Egresos registrados</span></div>
-        <table>
-          <thead>
-            <tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Monto</th><th>Comprobante</th><th></th></tr>
-          </thead>
-          <tbody id="t-egr"></tbody>
-        </table>
+    </div>
+    <div class="cart">
+      <div class="cart-head">
+        <span>🧾 Carrito</span>
+        <span id="cart-count" style="font-size:.72rem;font-weight:400;color:#8fa3b1">0 items</span>
       </div>
-    </section>
+      <div class="cart-items" id="cart-items"><div class="empty">Carrito vacío</div></div>
+      <div class="ctot" id="ctot" style="display:none">
+        <div class="trow"><span>Subtotal</span><span id="t-sub">$0.00</span></div>
+        <div class="trow"><span>IVA (servicios)</span><span id="t-iva">$0.00</span></div>
+        <div class="trow big"><span>TOTAL</span><span id="t-tot">$0.00</span></div>
+      </div>
+      <div class="cfoot">
+        <button class="btn bp wf" onclick="confirmarVenta()">✅ Cobrar</button>
+        <button class="btn bs wf" onclick="limpiarCarrito()">🗑️ Vaciar</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COLA -->
+<section class="sec" id="s-cola">
+  <div class="ptitle">🖨️ Cola de Impresión</div>
+  <div class="psub">Documentos enviados por alumnos esperando impresión y cobro</div>
+  <div id="cola-full-list"></div>
+</section>
+
+<!-- INVENTARIO -->
+<section class="sec" id="s-productos">
+  <div class="ptitle">📦 Inventario</div>
+  <div class="psub">Gestione productos. El QR se genera automáticamente.</div>
+  <div class="card">
+    <div class="cbar">
+      <div class="sb" style="width:210px"><input type="text" id="p-buscar" placeholder="Buscar…" oninput="renderProds()"></div>
+      <div class="sp"></div>
+      <button class="btn bp" onclick="openProdModal()">➕ Nuevo</button>
+    </div>
+    <table>
+      <thead><tr><th>QR</th><th>Nombre</th><th>Precio</th><th>Costo</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
+      <tbody id="t-prods"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- HISTORIAL -->
+<section class="sec" id="s-historial">
+  <div class="ptitle">📋 Historial de Ventas</div>
+  <div class="psub">Registro de todas las transacciones cobradas</div>
+  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <div class="fld" style="width:140px"><label>Desde</label><input type="date" id="h-desde"></div>
+    <div class="fld" style="width:140px"><label>Hasta</label><input type="date" id="h-hasta"></div>
+    <div class="fld" style="flex:1;min-width:130px"><label>Buscar</label>
+      <div class="sb"><input type="text" id="h-q" placeholder="Producto, alumno…" oninput="renderHist()"></div></div>
+    <div style="align-self:flex-end"><button class="btn bs" onclick="renderHist()">Filtrar</button></div>
+  </div>
+  <div class="card">
+    <table><thead><tr><th>Folio</th><th>Fecha</th><th>Hora</th><th>Items</th><th>Pago</th><th>Total</th></tr></thead>
+    <tbody id="t-hist"></tbody></table>
+  </div>
+</section>
+
+<!-- STOCK -->
+<section class="sec" id="s-stock">
+  <div class="ptitle">🔄 Ajuste de Stock</div>
+  <div class="psub">Registre entradas de mercancía o correcciones</div>
+  <div class="card" style="margin-bottom:18px">
+    <div class="cbar"><span class="ctitle">Registrar movimiento</span></div>
+    <div style="padding:18px">
+      <div class="f2">
+        <div class="fld"><label>Producto *</label><select id="sk-prod"><option value="">— Seleccione —</option></select></div>
+        <div class="fld"><label>Tipo</label>
+          <select id="sk-tipo">
+            <option value="ENTRADA">📥 Entrada</option>
+            <option value="AJUSTE+">➕ Ajuste +</option>
+            <option value="AJUSTE-">➖ Ajuste -</option>
+          </select>
+        </div>
+        <div class="fld"><label>Cantidad *</label><input type="number" id="sk-qty" min="1" value="1"></div>
+        <div class="fld"><label>Costo unitario ($)</label><input type="number" id="sk-cost" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="fld"><label>Proveedor</label><input type="text" id="sk-prov" placeholder="Nombre proveedor"></div>
+        <div class="fld"><label>Referencia</label><input type="text" id="sk-ref" placeholder="FAC-001"></div>
+      </div>
+      <button class="btn bp" style="margin-top:14px" onclick="regStock()">✅ Registrar</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="cbar"><span class="ctitle">Últimos movimientos</span></div>
+    <table><thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Costo total</th></tr></thead>
+    <tbody id="t-stock"></tbody></table>
+  </div>
+</section>
+
+<!-- FINANZAS -->
+<section class="sec" id="s-finanzas">
+  <div class="ptitle">💰 Egresos y Finanzas</div>
+  <div class="psub">Controle gastos para calcular la utilidad real</div>
+  <div class="kgrid" id="kpi-fin"></div>
+  <div class="card" style="margin-bottom:18px">
+    <div class="cbar"><span class="ctitle">Nuevo egreso</span></div>
+    <div style="padding:18px">
+      <div class="f2">
+        <div class="fld"><label>Tipo</label>
+          <select id="e-tipo">
+            <option>Reposición de Stock</option><option>Renta / Alquiler</option>
+            <option>Servicios (luz, agua, internet)</option><option>Sueldos</option>
+            <option>Mantenimiento de Equipo</option><option>Publicidad</option><option>Otros</option>
+          </select>
+        </div>
+        <div class="fld"><label>Monto ($) *</label><input type="number" id="e-monto" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="fld" style="grid-column:1/-1"><label>Descripción *</label><input type="text" id="e-desc" placeholder="Descripción del gasto…"></div>
+        <div class="fld"><label>Comprobante</label><input type="text" id="e-comp" placeholder="FAC-001"></div>
+        <div class="fld"><label>Método de pago</label>
+          <select id="e-pago"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta Débito</option></select>
+        </div>
+      </div>
+      <button class="btn bp" style="margin-top:14px" onclick="regEgreso()">✅ Registrar egreso</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="cbar"><span class="ctitle">Egresos registrados</span></div>
+    <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Monto</th><th>Comprobante</th><th></th></tr></thead>
+    <tbody id="t-egr"></tbody></table>
+  </div>
+</section>
+```
 
   </main>
+
+  <!-- NAVEGACIÓN MÓVIL -->
+
+  <nav class="mobile-nav" id="mobile-nav">
+    <button class="mn-btn on" onclick="go('dashboard');setMobileNav(this)">
+      <span class="mni">📊</span>Dashboard
+    </button>
+    <button class="mn-btn" onclick="go('venta');setMobileNav(this)">
+      <span class="mni">🛒</span>Venta
+    </button>
+    <button class="mn-btn" onclick="go('cola');setMobileNav(this)">
+      <span class="mni">🖨️</span>Cola
+      <span class="mn-dot" id="mn-cola-dot">0</span>
+    </button>
+    <button class="mn-btn" onclick="go('productos');setMobileNav(this)">
+      <span class="mni">📦</span>Inventario
+    </button>
+    <button class="mn-btn" onclick="showMobileMenu()">
+      <span class="mni">⋯</span>Más
+    </button>
+  </nav>
 </div>
 
-<!-- ═══════════════ ALUMNO ═══════════════ -->
+<!-- ALUMNO -->
+
 <div id="scr-alumno" class="scr">
   <div class="acard">
     <div class="acard-header">
       <h2>📄 Enviar trabajo para imprimir</h2>
       <p id="alumno-saludo">Bienvenido</p>
     </div>
-
-    <!-- Tipo de impresión -->
     <div class="fld" style="margin-bottom:14px">
       <label>Tipo de impresión</label>
       <div id="tipo-grid">
@@ -564,8 +537,6 @@ tbody tr:hover{background:var(--paper)}
         </div>
       </div>
     </div>
-
-    <!-- Upload PDF -->
     <div class="fld" style="margin-bottom:12px">
       <label>Selecciona tu archivo PDF</label>
       <div class="upload-area" id="upload-area">
@@ -575,26 +546,15 @@ tbody tr:hover{background:var(--paper)}
         <p class="up-file" id="up-filename">Ningún archivo seleccionado</p>
       </div>
     </div>
-
-    <!-- Info páginas -->
     <div class="pags-info" id="pags-info" style="display:none">
-      <div class="pag-box">
-        <div class="pv" id="alumno-pags">0</div>
-        <div class="pl">Páginas</div>
-      </div>
-      <div class="pag-box">
-        <div class="pv" id="alumno-tipo-label">B&N</div>
-        <div class="pl">Tipo</div>
-      </div>
+      <div class="pag-box"><div class="pv" id="alumno-pags">0</div><div class="pl">Páginas</div></div>
+      <div class="pag-box"><div class="pv" id="alumno-tipo-label">B&N</div><div class="pl">Tipo</div></div>
     </div>
-
-    <!-- Costo -->
     <div class="cost-display">
       <div class="cost-label">Costo estimado</div>
       <div class="cost-val" id="alumno-total">$0.00</div>
       <div class="cost-sub" id="alumno-cost-sub">Seleccione un archivo para calcular</div>
     </div>
-
     <button class="btn bi wf" style="font-size:.95rem;padding:14px" id="btn-enviar" onclick="enviarArchivo()">
       📤 Enviar al Profr. Cecilio
     </button>
@@ -604,16 +564,13 @@ tbody tr:hover{background:var(--paper)}
   </div>
 </div>
 
-<!-- ═══════════════ MODALES ═══════════════ -->
+<!-- MODALES -->
 
-<!-- Modal Producto (actualizado con foto y descripción) -->
 <div class="ov" id="ov-prod">
   <div class="modal">
     <div class="mh"><h2 id="mp-title">Nuevo Producto</h2><button class="xbtn" onclick="closeModal('ov-prod')">✕</button></div>
     <div class="mb">
       <div class="fg">
-
-        <!-- FOTO DEL PRODUCTO -->
         <div class="fld">
           <label>Foto del producto</label>
           <div style="position:relative;width:100%;aspect-ratio:2/1;border-radius:12px;overflow:hidden;background:var(--paper2);border:2px dashed var(--paper3);cursor:pointer" onclick="document.getElementById('mp-foto-input').click()">
@@ -623,14 +580,10 @@ tbody tr:hover{background:var(--paper)}
               <span style="font-size:.8rem;font-weight:600">Tomar foto o elegir imagen</span>
               <span style="font-size:.72rem">Toca para abrir la cámara</span>
             </div>
-            <!-- capture="environment" abre cámara trasera directo en iPad/celular -->
-            <input type="file" id="mp-foto-input" accept="image/*" capture="environment"
-              style="position:absolute;inset:0;opacity:0;cursor:pointer"
-              onchange="previewFoto(this)">
+            <input type="file" id="mp-foto-input" accept="image/*" capture="environment" style="position:absolute;inset:0;opacity:0;cursor:pointer" onchange="previewFoto(this)">
           </div>
-          <span class="hint">En iPad y celular abre la cámara directamente. En computadora abre la galería.</span>
+          <span class="hint">En iPad y celular abre la cámara directamente.</span>
         </div>
-
         <div class="f2">
           <div class="fld"><label>Nombre *</label><input type="text" id="mp-nom" placeholder="Nombre del producto"></div>
           <div class="fld"><label>Categoría</label>
@@ -642,23 +595,22 @@ tbody tr:hover{background:var(--paper)}
           </div>
           <div class="fld" style="grid-column:1/-1">
             <label>Descripción (aparece en catálogo)</label>
-            <input type="text" id="mp-desc" placeholder="Ej: 100 hojas, pasta dura, cuadros…">
+            <input type="text" id="mp-desc" placeholder="Ej: 100 hojas, pasta dura…">
           </div>
           <div class="fld"><label>Precio costo ($) *</label><input type="number" id="mp-cost" min="0" step="0.01" placeholder="0.00"></div>
           <div class="fld"><label>Precio venta ($) *</label><input type="number" id="mp-venta" min="0" step="0.01" placeholder="0.00"></div>
           <div class="fld"><label>Stock inicial</label><input type="number" id="mp-stk" min="0" value="0"></div>
-          <div class="fld"><label>Stock mínimo (alerta)</label><input type="number" id="mp-min" min="0" value="5"></div>
+          <div class="fld"><label>Stock mínimo</label><input type="number" id="mp-min" min="0" value="5"></div>
         </div>
       </div>
     </div>
     <div class="mf">
       <button class="btn bs" onclick="closeModal('ov-prod')">Cancelar</button>
-      <button class="btn bp" onclick="saveProd()">💾 Guardar producto</button>
+      <button class="btn bp" onclick="saveProd()">💾 Guardar</button>
     </div>
   </div>
 </div>
 
-<!-- Modal Scanner -->
 <div class="ov" id="ov-scan">
   <div class="modal">
     <div class="mh"><h2>📷 Escanear QR</h2><button class="xbtn" onclick="closeScanner()">✕</button></div>
@@ -679,7 +631,6 @@ tbody tr:hover{background:var(--paper)}
   </div>
 </div>
 
-<!-- Modal Ver QR -->
 <div class="ov" id="ov-qr">
   <div class="modal">
     <div class="mh"><h2 id="qr-title">Código QR</h2><button class="xbtn" onclick="closeModal('ov-qr')">✕</button></div>
@@ -691,7 +642,6 @@ tbody tr:hover{background:var(--paper)}
   </div>
 </div>
 
-<!-- Modal Éxito Alumno -->
 <div class="ov" id="ov-exito">
   <div class="modal">
     <div class="mb" style="text-align:center;padding:36px">
@@ -705,32 +655,20 @@ tbody tr:hover{background:var(--paper)}
 
 <div class="ov" id="ov-imp-manual">
   <div class="modal">
-    <div class="mh">
-      <h2>🖨️ Impresión Manual</h2>
-      <button class="xbtn" onclick="closeModal('ov-imp-manual')">✕</button>
-    </div>
+    <div class="mh"><h2>🖨️ Impresión Manual</h2><button class="xbtn" onclick="closeModal('ov-imp-manual')">✕</button></div>
     <div class="mb">
-      <p style="font-size:.82rem;color:var(--ink3);margin-bottom:16px">
-        Para clientes sin celular, con USB o cuando la cámara no funciona.
-      </p>
+      <p style="font-size:.82rem;color:var(--ink3);margin-bottom:16px">Para clientes sin celular, con USB o cuando la cámara no funciona.</p>
       <div class="fg">
         <div class="f2">
-          <div class="fld">
-            <label>Número de páginas *</label>
-            <input type="number" id="im-paginas" min="1" placeholder="0" oninput="calcularManual()">
-          </div>
-          <div class="fld">
-            <label>Tipo de impresión</label>
+          <div class="fld"><label>Número de páginas *</label><input type="number" id="im-paginas" min="1" placeholder="0" oninput="calcularManual()"></div>
+          <div class="fld"><label>Tipo de impresión</label>
             <select id="im-tipo" onchange="calcularManual()">
               <option value="laser_bn">🖨️ Láser B&N — $0.50/pág</option>
               <option value="smart_tank">🎨 Color — $2.00/pág</option>
             </select>
           </div>
         </div>
-        <div class="fld">
-          <label>Nombre del cliente (opcional)</label>
-          <input type="text" id="im-usuario" placeholder="Nombre o 'Presencial'">
-        </div>
+        <div class="fld"><label>Nombre del cliente (opcional)</label><input type="text" id="im-usuario" placeholder="Nombre o 'Presencial'"></div>
         <div style="background:var(--ink);border-radius:var(--rs);padding:16px;text-align:center">
           <div style="font-size:.72rem;color:#8fa3b1;text-transform:uppercase;letter-spacing:.5px">Total a cobrar</div>
           <div id="im-total" style="font-size:2rem;font-weight:800;color:#fff;margin-top:4px">$0.00</div>
@@ -744,8 +682,34 @@ tbody tr:hover{background:var(--paper)}
   </div>
 </div>
 
-<div class="toasts" id="toasts"></div>
+<!-- Modal Más (menú móvil) -->
 
+<div class="ov" id="ov-more">
+  <div class="modal" style="max-width:300px;border-radius:20px">
+    <div class="mb" style="padding:16px">
+      <div style="font-size:.72rem;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Más opciones</div>
+      <div style="display:grid;gap:6px">
+        <button class="btn bs wf" style="justify-content:flex-start;gap:12px" onclick="go('finanzas');closeModal('ov-more');setMobileNav(null)">
+          <span style="font-size:1.2rem">💰</span> Egresos y Finanzas
+        </button>
+        <button class="btn bs wf" style="justify-content:flex-start;gap:12px" onclick="go('historial');closeModal('ov-more');setMobileNav(null)">
+          <span style="font-size:1.2rem">📋</span> Historial de ventas
+        </button>
+        <button class="btn bs wf" style="justify-content:flex-start;gap:12px" onclick="go('stock');closeModal('ov-more');setMobileNav(null)">
+          <span style="font-size:1.2rem">🔄</span> Ajuste de stock
+        </button>
+        <button class="btn bs wf" style="justify-content:flex-start;gap:12px" onclick="exportar();closeModal('ov-more')">
+          <span style="font-size:1.2rem">⬇️</span> Exportar datos
+        </button>
+        <button class="btn br wf" style="justify-content:flex-start;gap:12px;margin-top:4px" onclick="cerrarSesion()">
+          <span style="font-size:1.2rem">🚪</span> Cerrar sesión
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

@@ -841,22 +841,53 @@ window.delEgreso = (id) => {
 // ═══════════════════════════════════════════════════════════════════
 // SCANNER QR (jsQR)
 // ═══════════════════════════════════════════════════════════════════
+let scanFacing = 'environment';
+
+function updateScannerCameraButton(){
+  const btn = document.getElementById('qr-switch-btn');
+  if(!btn) return;
+  btn.textContent = scanFacing === 'environment' ? '🔄 Cámara frontal' : '🔄 Cámara trasera';
+}
+
+function stopCam(){
+  clearInterval(scanTimer); scanTimer = null;
+  if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream = null; }
+  const v = document.getElementById('qr-video');
+  if(v) v.srcObject = null;
+}
+
+async function startCam(){
+  stopCam();
+  const video = document.getElementById('qr-video');
+  const st    = document.getElementById('qr-st');
+  updateScannerCameraButton();
+  try {
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode:{ ideal: scanFacing }, width:{ideal:1280}, height:{ideal:720} }
+      });
+    } catch(e1){
+      stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    }
+    scanStream = stream; video.srcObject = stream;
+    st.textContent = 'Apunte al código QR del producto…';
+    scanTimer = setInterval(scanFrame, 200);
+  } catch(e){
+    if(st) st.textContent = 'No se pudo acceder a la cámara: ' + e.message;
+  }
+}
+
+window.toggleScannerCamera = async () => {
+  scanFacing = scanFacing === 'environment' ? 'user' : 'environment';
+  await startCam();
+};
+
 window.openScanner = () => {
   document.getElementById('ov-scan').classList.add('on');
   document.getElementById('qr-ok').style.display='none';
   startCam();
 };
-
-function startCam(){
-  const video = document.getElementById('qr-video');
-  const st    = document.getElementById('qr-st');
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}})
-  .then(stream=>{
-    scanStream=stream; video.srcObject=stream;
-    st.textContent='Apunte al código QR del producto…';
-    scanTimer=setInterval(scanFrame,200);
-  }).catch(e=>{ if(st) st.textContent='No se pudo acceder a la cámara: '+e.message; });
-}
 
 function scanFrame(){
   const video=document.getElementById('qr-video');
@@ -882,10 +913,7 @@ function scanFrame(){
 }
 
 window.closeScanner = () => {
-  clearInterval(scanTimer); scanTimer=null;
-  if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; }
-  const v=document.getElementById('qr-video');
-  if(v) v.srcObject=null;
+  stopCam();
   closeModal('ov-scan');
 };
 

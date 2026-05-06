@@ -669,12 +669,11 @@ tbody tr:hover{background:var(--paper)}
           <span style="font-size:.8rem;font-weight:600">Tomar foto o elegir imagen</span>
           <span style="font-size:.72rem">Toca para abrir la cámara</span>
         </div>
-        <!-- capture="environment" abre cámara trasera directo en iPad/celular -->
-        <input type="file" id="mp-foto-input" accept="image/*" capture="environment"
+        <input type="file" id="mp-foto-input" accept="image/*,.heic,.heif"
           style="position:absolute;inset:0;opacity:0;cursor:pointer"
           onchange="previewFoto(this)">
       </div>
-      <span class="hint">En iPad y celular abre la cámara directamente. En computadora abre la galería.</span>
+      <span class="hint">En celular mostrara opciones para Camara, Galeria o Archivos (segun el sistema).</span>
     </div>
 
     <div class="f2">

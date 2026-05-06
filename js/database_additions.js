@@ -1,6 +1,6 @@
-import { ref, uploadBytes, getDownloadURL, deleteObject } 
+import { ref, uploadBytes, getDownloadURL, deleteObject, getStorage } 
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-import { storage } from "./firebase-config.js";
+import { app, storage } from "./firebase-config.js";
 
 /**
  * subirFotoProducto
@@ -12,13 +12,23 @@ export const subirFotoProducto = async (archivo, nombreProducto) => {
     const extRaw  = archivo.name.includes('.') ? archivo.name.split('.').pop() : '';
     const ext     = (extRaw || 'jpg').toLowerCase();
     const nombre  = `${Date.now()}_${nombreProducto.replace(/\s+/g,'_').substring(0,30)}.${ext}`;
-    const storRef = ref(storage, `productos/${nombre}`);
     const metadata = { contentType: archivo.type || 'image/jpeg' };
-    const snap    = await uploadBytes(storRef, archivo, metadata);
-    return await getDownloadURL(snap.ref);
+    const path = `productos/${nombre}`;
+
+    try {
+      const storRef = ref(storage, path);
+      const snap = await uploadBytes(storRef, archivo, metadata);
+      return await getDownloadURL(snap.ref);
+    } catch(primaryError){
+      // Compatibilidad con proyectos que siguen usando bucket appspot.
+      const legacyStorage = getStorage(app, "gs://academic-tracker-qeoxi.appspot.com");
+      const legacyRef = ref(legacyStorage, path);
+      const snap = await uploadBytes(legacyRef, archivo, metadata);
+      return await getDownloadURL(snap.ref);
+    }
   } catch(e){
     console.error('[Storage] Error subiendo foto:', e);
-    return null;
+    throw e;
   }
 };
 

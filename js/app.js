@@ -644,8 +644,13 @@ window.saveProd = async () => {
 
   if(fotoFile){
     toast('Subiendo foto…','');
-    fotoURL = await subirFotoProducto(fotoFile, nom);
-    if(!fotoURL){ toast('Error subiendo foto, intente de nuevo','er'); return; }
+    try {
+      fotoURL = await subirFotoProducto(fotoFile, nom);
+      if(!fotoURL){ toast('No se obtuvo URL de la foto','er'); return; }
+    } catch(e){
+      toast('Error subiendo foto: ' + (e?.code || e?.message || 'revise Storage Rules'), 'er');
+      return;
+    }
   }
 
   const datos = {

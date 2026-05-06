@@ -238,6 +238,15 @@ window.filtrar = () => {
     q||catActual!=='todas' ? `${f.length} resultado${f.length!==1?'s':''} encontrado${f.length!==1?'s':''}` : '';
 };
 
+function getFotoProducto(p){
+  return p.fotoURL || p.fotoUrl || p.foto || p.imagenURL || p.imagenUrl || '';
+}
+
+window.fallbackProductImage = (imgEl, categoria='Otros') => {
+  const icono = ICONS[categoria||'Otros'] || '📦';
+  imgEl.outerHTML = `<div class="pcard-img-placeholder">${icono}</div>`;
+};
+
 function renderGrid(lista){
   const grid = document.getElementById('grid');
   if(!lista.length){
@@ -254,8 +263,9 @@ function renderGrid(lista){
     const bajo  = stock>0&&stock<=5;
     const badgeCls = agot?'sb-out':bajo?'sb-low':'sb-ok';
     const badgeTxt = agot?'🔴 Agotado':bajo?'🟡 Pocas unidades':'🟢 Disponible';
-    const imgHtml = p.fotoURL
-      ? `<img class="pcard-img" src="${p.fotoURL}" alt="${p.nombre}" loading="lazy">`
+    const foto = getFotoProducto(p);
+    const imgHtml = foto
+      ? `<img class="pcard-img" src="${foto}" alt="${p.nombre}" loading="lazy" onerror="fallbackProductImage(this, '${(p.categoria||'Otros').replace(/'/g, "\\'")}')">`
       : `<div class="pcard-img-placeholder">${ICONS[p.categoria||'Otros']||'📦'}</div>`;
     return `<div class="pcard ${agot?'agotado':''}" onclick="verDetalle('${p.id}')">
       ${imgHtml}
@@ -282,8 +292,9 @@ window.verDetalle = (id) => {
   document.getElementById('md-name').textContent   = p.nombre;
   document.getElementById('md-price').textContent  = `$${(p.venta||0).toFixed(2)}`;
   document.getElementById('md-desc').textContent   = p.descripcion||'';
-  document.getElementById('modal-img-wrap').innerHTML = p.fotoURL
-    ? `<img class="modal-img" src="${p.fotoURL}" alt="${p.nombre}">`
+  const foto = getFotoProducto(p);
+  document.getElementById('modal-img-wrap').innerHTML = foto
+    ? `<img class="modal-img" src="${foto}" alt="${p.nombre}" onerror="this.outerHTML='<div class=\"modal-img-ph\">${ICONS[p.categoria||'Otros']||'📦'}</div>'">`
     : `<div class="modal-img-ph">${ICONS[p.categoria||'Otros']||'📦'}</div>`;
   document.getElementById('md-meta').innerHTML = `
     <div class="mmeta"><div class="mv">${agot?'Agotado':bajo?'Pocas ('+stock+')':stock+' uds.'}</div><div class="ml">Disponibilidad</div></div>

@@ -9,10 +9,12 @@ import { storage } from "./firebase-config.js";
  */
 export const subirFotoProducto = async (archivo, nombreProducto) => {
   try {
-    const ext     = archivo.name.split('.').pop();
+    const extRaw  = archivo.name.includes('.') ? archivo.name.split('.').pop() : '';
+    const ext     = (extRaw || 'jpg').toLowerCase();
     const nombre  = `${Date.now()}_${nombreProducto.replace(/\s+/g,'_').substring(0,30)}.${ext}`;
     const storRef = ref(storage, `productos/${nombre}`);
-    const snap    = await uploadBytes(storRef, archivo);
+    const metadata = { contentType: archivo.type || 'image/jpeg' };
+    const snap    = await uploadBytes(storRef, archivo, metadata);
     return await getDownloadURL(snap.ref);
   } catch(e){
     console.error('[Storage] Error subiendo foto:', e);

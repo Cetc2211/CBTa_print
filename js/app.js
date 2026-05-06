@@ -656,6 +656,8 @@ window.saveProd = async () => {
     stock:    parseInt(document.getElementById('mp-stk').value)||0,
     stockMin: parseInt(document.getElementById('mp-min').value)||5,
     fotoURL,
+    fotoUrl: fotoURL,
+    foto: fotoURL,
   };
 
   try {

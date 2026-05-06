@@ -98,6 +98,7 @@ body{font-family:var(--f);background:var(--paper);color:var(--ink);min-height:10
 
 /* TABLES */
 table{width:100%;border-collapse:collapse;font-size:.82rem}
+.table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
 thead tr{background:var(--paper2)}
 th{padding:9px 13px;text-align:left;font-weight:600;font-size:.7rem;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
 td{padding:9px 13px;border-bottom:1px solid var(--paper2);vertical-align:middle}
@@ -251,6 +252,7 @@ tbody tr:hover{background:var(--paper)}
 .kgrid{grid-template-columns:1fr 1fr}
 .main{padding-bottom:72px}
 .bot-nav{display:flex!important}
+.inv-table{min-width:760px}
 }
 .bot-nav{
   display:none;
@@ -476,12 +478,14 @@ tbody tr:hover{background:var(--paper)}
       <div class="sp"></div>
       <button class="btn bp" onclick="openProdModal()">➕ Nuevo producto</button>
     </div>
-    <table>
-      <thead>
-        <tr><th>QR</th><th>Nombre</th><th>Precio venta</th><th>Costo</th><th>Stock</th><th>Estado</th><th></th></tr>
-      </thead>
-      <tbody id="t-prods"></tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="inv-table">
+        <thead>
+          <tr><th>QR</th><th>Nombre</th><th>Precio venta</th><th>Costo</th><th>Stock</th><th>Estado</th><th></th></tr>
+        </thead>
+        <tbody id="t-prods"></tbody>
+      </table>
+    </div>
   </div>
 </section>
 

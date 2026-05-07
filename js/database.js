@@ -11,8 +11,7 @@ export const escucharColaImpresion = (callback) => {
     return onSnapshot(q, callback);
 };
 
-// Enviar Archivo (Alumno)
-export const enviarDocumentoNube = async (datos) => {
+const subirDocumentoACola = async (datos, extras = {}) => {
     try {
         if (!datos.archivo) return null;
         const extension = datos.archivo.name.split('.').pop();
@@ -29,12 +28,65 @@ export const enviarDocumentoNube = async (datos) => {
             paginas: Number(datos.paginas),
             tipoImpresion: datos.tipoImpresion, // 'laser_bn' o 'smart_tank'
             fecha: serverTimestamp(),
-            estatus: 'pendiente'
+            estatus: 'pendiente',
+            ...extras,
         });
     } catch(e) { 
         console.error("Error en subida:", e);
         return null; 
     }
+};
+
+// Enviar Archivo (Alumno)
+export const enviarDocumentoNube = async (datos) => subirDocumentoACola(datos);
+
+export const registrarDocumentoDocente = async (datos) => {
+    const costoGenerado = Number(datos.paginas) * Number(datos.precioUnitario || 0);
+    const gratuita = Boolean(datos.gratuita);
+    const costoExcedente = gratuita ? 0 : costoGenerado;
+
+    const colaRef = await subirDocumentoACola(datos, {
+        origen: 'docente',
+        esDocente: true,
+        gratuita,
+        costoGenerado,
+        costoExcedente,
+        docente: datos.usuario,
+        weekKey: datos.weekKey,
+    });
+
+    if (!colaRef) return null;
+
+    const historialRef = await addDoc(collection(db, "uso_docentes"), {
+        usuario: datos.usuario,
+        archivo: datos.archivo.name,
+        paginas: Number(datos.paginas),
+        tipoImpresion: datos.tipoImpresion,
+        precioUnitario: Number(datos.precioUnitario || 0),
+        costoGenerado,
+        costoExcedente,
+        gratuita,
+        weekKey: datos.weekKey,
+        colaId: colaRef.id,
+        fecha: serverTimestamp(),
+    });
+
+    return { colaRef, historialRef, costoGenerado, costoExcedente, gratuita };
+};
+
+export const contarUsoDocenteSemanal = async (usuario, weekKey) => {
+    const q = query(
+        collection(db, "uso_docentes"),
+        where("usuario", "==", usuario),
+        where("weekKey", "==", weekKey)
+    );
+    const snap = await getDocs(q);
+    return snap.size;
+};
+
+export const escucharUsoDocentes = (callback) => {
+    const q = query(collection(db, "uso_docentes"), orderBy("fecha", "desc"), limit(100));
+    return onSnapshot(q, callback);
 };
 
 // Inventario

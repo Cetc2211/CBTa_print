@@ -10,23 +10,31 @@ import {
   guardarNuevoProducto,
   actualizarProducto,
   eliminarRegistro,
+  registrarDocumentoDocente,
+  contarUsoDocenteSemanal,
+  escucharUsoDocentes,
 } from "./database.js";
 import { subirFotoProducto, eliminarFotoProducto } from "./database_additions.js";
 
 // ─── PRECIOS (misma config que el original) ────────────────────────
 const PRECIOS = { laser_bn: 0.50, smart_tank: 2.00 };
 const LABELS  = { laser_bn: 'Láser B&N', smart_tank: 'Smart Tank Color' };
+const DOCENTE_LIMITE_SEMANAL = 5;
 
 // ─── ESTADO GLOBAL ─────────────────────────────────────────────────
 let carrito       = [];
 let metodo        = 'Efectivo';
 let editProdId    = null;
 let tipoImpAlumno = 'laser_bn';
+let tipoImpDocente = 'laser_bn';
 let scanStream    = null;
 let scanTimer     = null;
 let chSem = null, chTipo = null;
 let colaActual    = [];    // snapshot en tiempo real de Firebase
 let inventario    = [];    // snapshot en tiempo real de Firebase
+let usoDocentesActual = [];
+let adminIniciado = false;
+let docenteResumen = { usados: 0, restantes: DOCENTE_LIMITE_SEMANAL, gratuita: true, costoActual: 0, weekKey: '' };
 
 // ─── LOCAL DB (egresos y movimientos de stock — localStorage) ──────
 const LS = {
@@ -47,6 +55,14 @@ function toast(msg, t=''){
 // ─── FORMAT ────────────────────────────────────────────────────────
 const $m = n => '$' + (n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const fd = d => { if(!d) return ''; const [y,mo,dd]=d.split('-'); return `${dd}/${mo}/${y}`; };
+
+function getWeekKey(date = new Date()){
+  const base = new Date(date);
+  base.setHours(0,0,0,0);
+  const day = (base.getDay() + 6) % 7;
+  base.setDate(base.getDate() - day);
+  return base.toISOString().slice(0,10);
+}
 
 // ─── TOPBAR DATE ───────────────────────────────────────────────────
 function setDate(){
@@ -106,10 +122,17 @@ window.entrar = () => {
       toast('Contraseña incorrecta','er'); return;
     }
     localStorage.setItem('usuario_cbta', nombre);
+    localStorage.removeItem('rol_cbta');
     mostrarAdmin(nombre);
+  } else if(roleSelected === 'docente') {
+    if(nombre.length < 2){ toast('Nombre demasiado corto','er'); return; }
+    localStorage.setItem('usuario_cbta', nombre);
+    localStorage.setItem('rol_cbta', 'docente');
+    mostrarDocente(nombre);
   } else {
     if(nombre.length < 2){ toast('Nombre demasiado corto','er'); return; }
     localStorage.setItem('usuario_cbta', nombre);
+    localStorage.setItem('rol_cbta', 'alumno');
     mostrarAlumno(nombre);
   }
 };
@@ -132,6 +155,8 @@ function verificarSesion(){
     showScreen('scr-login');
   } else if(ADMINS[user]){
     mostrarAdmin(user);
+  } else if(localStorage.getItem('rol_cbta') === 'docente') {
+    mostrarDocente(user);
   } else {
     mostrarAlumno(user);
   }
@@ -144,6 +169,13 @@ function mostrarAdmin(nombre){
   setDate();
 }
 
+function mostrarDocente(nombre){
+  showScreen('scr-docente');
+  const saludo = document.getElementById('docente-saludo');
+  if(saludo) saludo.textContent = `Hola, ${nombre} 👋`;
+  actualizarEstadoDocente();
+}
+
 function mostrarAlumno(nombre){
   showScreen('scr-alumno');
   document.getElementById('alumno-saludo').textContent = `Hola, ${nombre} 👋`;
@@ -151,6 +183,7 @@ function mostrarAlumno(nombre){
 
 window.cerrarSesion = () => {
   localStorage.removeItem('usuario_cbta');
+  localStorage.removeItem('rol_cbta');
   location.reload();
 };
 
@@ -163,6 +196,12 @@ function showScreen(id){
 // ADMIN — LISTENERS FIREBASE EN TIEMPO REAL
 // ═══════════════════════════════════════════════════════════════════
 function iniciarAdmin(){
+  if(adminIniciado){
+    renderDash();
+    return;
+  }
+  adminIniciado = true;
+
   // Cola de impresión — tiempo real desde Firestore
   escucharColaImpresion(snap => {
     colaActual = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -178,6 +217,11 @@ function iniciarAdmin(){
     renderProdList();
     renderStockSelect();
     renderDash();
+  });
+
+  escucharUsoDocentes(snap => {
+    usoDocentesActual = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if(document.getElementById('s-docentes')?.classList.contains('on')) renderUsoDocentes();
   });
 
   renderDash();
@@ -226,6 +270,7 @@ window.go = (s) => {
   if(s==='finanzas')  renderFinanzas();
   if(s==='venta')     { renderProdList(); renderCart(); renderColaVenta(); }
   if(s==='cola')      renderColaFull();
+  if(s==='docentes')  renderUsoDocentes();
 };
 
 window.toggleBotMore = () => {
@@ -329,19 +374,20 @@ function renderDash(){
 // ═══════════════════════════════════════════════════════════════════
 function renderColaImpresion(){
   // Para el panel de venta rápida (mini)
-  const miniEl = document.getElementById('cola-venta-list');
+  const colaVenta = colaActual.filter(doc=>!doc.esDocente);
   const miniCount = document.getElementById('cola-venta-count');
-  if(miniCount) miniCount.textContent = colaActual.length;
+  if(miniCount) miniCount.textContent = colaVenta.length;
 }
 
 function renderColaVenta(){
   const el = document.getElementById('cola-venta-list');
   if(!el) return;
-  if(colaActual.length===0){
+  const colaVenta = colaActual.filter(doc=>!doc.esDocente);
+  if(colaVenta.length===0){
     el.innerHTML='<div class="empty">Sin impresiones pendientes</div>';
     return;
   }
-  el.innerHTML = colaActual.map(doc=>{
+  el.innerHTML = colaVenta.map(doc=>{
     const precio = PRECIOS[doc.tipoImpresion]||0.5;
     const total  = (doc.paginas * precio).toFixed(2);
     const label  = LABELS[doc.tipoImpresion]||'B&N';
@@ -373,19 +419,26 @@ function renderColaFull(){
     const total  = (doc.paginas * precio).toFixed(2);
     const label  = LABELS[doc.tipoImpresion]||'B&N';
     const fecha  = doc.fecha?.toDate ? doc.fecha.toDate().toLocaleString('es-MX') : '—';
+    const esDocente = Boolean(doc.esDocente);
+    const badgeEstado = esDocente
+      ? `<span class="badge ${doc.gratuita ? 'bsrv' : 'bpend'}">${doc.gratuita ? 'Uso docente gratuito' : 'Docente con costo'}</span>`
+      : '<span class="badge bpend">⏳ Pendiente</span>';
+    const accionPrincipal = esDocente
+      ? `<div style="font-size:.77rem;color:var(--ink3);text-align:right">Costo generado: <strong>${$m(doc.costoGenerado||0)}</strong></div>`
+      : `<button class="btn bi bsm wf" style="justify-content:center"
+          onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas},'${label}');go('venta')">
+          🛒 Cobrar $${total}
+        </button>`;
     return `<div class="imp-item card" style="margin-bottom:10px;padding:16px 18px">
       <span class="imp-icon" style="font-size:2rem">${doc.tipoImpresion==='smart_tank'?'🎨':'🖨️'}</span>
       <div class="imp-info">
         <div class="imp-name" style="font-size:.9rem">${doc.archivo||'Documento'}</div>
         <div class="imp-meta">👤 ${doc.usuario} &nbsp;·&nbsp; ${label} &nbsp;·&nbsp; ${doc.paginas} páginas &nbsp;·&nbsp; ${fecha}</div>
-        <div style="margin-top:6px"><span class="badge bpend">⏳ Pendiente</span></div>
+        <div style="margin-top:6px">${badgeEstado}</div>
       </div>
       <div class="imp-actions" style="flex-direction:column;gap:6px">
         ${doc.archivoURL?`<a href="${doc.archivoURL}" target="_blank" class="btn bs bsm wf" style="justify-content:center">👁️ Ver PDF</a>`:''}
-        <button class="btn bi bsm wf" style="justify-content:center"
-          onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas},'${label}');go('venta')">
-          🛒 Cobrar $${total}
-        </button>
+        ${accionPrincipal}
          <button class="btn br bsm wf" style="justify-content:center"
           onclick="eliminarDeCola('${doc.id}','${doc.archivo||'archivo'}')">
           🗑️ Eliminar sin cobrar
@@ -400,6 +453,11 @@ function renderColaFull(){
 // CARRITO — Unifica impresiones + productos
 // ═══════════════════════════════════════════════════════════════════
 window.addImpToCart = (id, nombre, precio, usuario, paginas, label) => {
+  const doc = colaActual.find(item => item.id === id);
+  if(doc?.esDocente){
+    toast('Los registros docentes no se cobran desde caja','wa');
+    return;
+  }
   carrito.push({
     id, nombre: `🖨️ ${nombre} (${paginas} págs)`,
     precio: parseFloat(precio), tipo: 'impresion',
@@ -946,7 +1004,7 @@ window.closeScanner = () => {
 // PANEL ALUMNO
 // ═══════════════════════════════════════════════════════════════════
 window.selTipo = (el, tipo) => {
-  document.querySelectorAll('.tipo-card').forEach(c=>c.classList.remove('sel'));
+  document.querySelectorAll('#tipo-grid .tipo-card').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
   tipoImpAlumno = tipo;
   actualizarCostoAlumno();
@@ -1007,6 +1065,155 @@ window.resetAlumno = () => {
   document.getElementById('alumno-total').textContent='$0.00';
   document.getElementById('alumno-cost-sub').textContent='Seleccione un archivo para calcular';
 };
+
+// ═══════════════════════════════════════════════════════════════════
+// PANEL DOCENTE
+// ═══════════════════════════════════════════════════════════════════
+async function actualizarEstadoDocente(paginas = null){
+  const usuario = localStorage.getItem('usuario_cbta');
+  if(!usuario) return;
+
+  const weekKey = getWeekKey();
+  const usados = await contarUsoDocenteSemanal(usuario, weekKey);
+  const restantes = Math.max(0, DOCENTE_LIMITE_SEMANAL - usados);
+  const gratuita = usados < DOCENTE_LIMITE_SEMANAL;
+  const nPaginas = paginas ?? (parseInt(document.getElementById('docente-pags')?.textContent) || 0);
+  const costoActual = nPaginas * (PRECIOS[tipoImpDocente] || 0);
+
+  docenteResumen = { usados, restantes, gratuita, costoActual, weekKey };
+
+  const estado = document.getElementById('docente-estado');
+  const resumen = document.getElementById('docente-resumen');
+  const total = document.getElementById('docente-total');
+  const sub = document.getElementById('docente-cost-sub');
+  const aviso = document.getElementById('docente-aviso');
+
+  if(estado) estado.textContent = gratuita
+    ? `Te quedan ${restantes} impresión${restantes!==1?'es':''} gratuita${restantes!==1?'s':''} esta semana.`
+    : 'Límite semanal gratuito excedido. Este envío generará costo.';
+  if(resumen) resumen.textContent = `Usadas esta semana: ${usados} de ${DOCENTE_LIMITE_SEMANAL}`;
+  if(total) total.textContent = gratuita ? 'Sin costo' : $m(costoActual);
+  if(sub) sub.textContent = gratuita
+    ? 'El costo se registrará solo para administración.'
+    : (nPaginas > 0 ? `${nPaginas} página${nPaginas!==1?'s':''} × ${$m(PRECIOS[tipoImpDocente])}` : 'Seleccione un archivo para calcular');
+  if(aviso) aviso.style.display = gratuita ? 'none' : 'block';
+}
+
+window.selTipoDocente = (el, tipo) => {
+  document.querySelectorAll('#tipo-grid-docente .tipo-card').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  tipoImpDocente = tipo;
+  document.getElementById('docente-tipo-label').textContent = tipo==='laser_bn'?'B&N':'Color';
+  actualizarEstadoDocente();
+};
+
+document.getElementById('input-archivo-docente')?.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if(!file||file.type!=='application/pdf'){ toast('Solo se aceptan archivos PDF','er'); return; }
+  document.getElementById('up-filename-docente').textContent = file.name;
+  document.getElementById('docente-cost-sub').textContent = 'Leyendo PDF…';
+
+  const reader = new FileReader();
+  reader.onload = async function(){
+    try {
+      const arr = new Uint8Array(this.result);
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+      const pdf = await pdfjsLib.getDocument(arr).promise;
+      document.getElementById('docente-pags').textContent = pdf.numPages;
+      document.getElementById('pags-info-docente').style.display = 'flex';
+      await actualizarEstadoDocente(pdf.numPages);
+    } catch(e){ toast('Error al leer PDF: '+e.message,'er'); }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+window.enviarArchivoDocente = async () => {
+  const archivo = document.getElementById('input-archivo-docente').files[0];
+  const paginas = parseInt(document.getElementById('docente-pags').textContent)||0;
+  const usuario = localStorage.getItem('usuario_cbta');
+  if(!archivo){ toast('Seleccione un archivo PDF','er'); return; }
+  if(paginas===0){ toast('El archivo no tiene páginas detectadas','er'); return; }
+
+  await actualizarEstadoDocente(paginas);
+
+  const btn = document.getElementById('btn-enviar-docente');
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+
+  try {
+    const res = await registrarDocumentoDocente({
+      usuario,
+      archivo,
+      paginas,
+      tipoImpresion: tipoImpDocente,
+      precioUnitario: PRECIOS[tipoImpDocente],
+      gratuita: docenteResumen.gratuita,
+      weekKey: docenteResumen.weekKey,
+    });
+
+    if(res){
+      document.getElementById('ov-exito-docente').classList.add('on');
+      resetDocente();
+      await actualizarEstadoDocente(0);
+    } else {
+      toast('Error al registrar. Verifique conexión.','er');
+    }
+  } catch(e) {
+    toast('Error al registrar: '+e.message,'er');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '📤 Enviar a impresión';
+};
+
+window.resetDocente = () => {
+  document.getElementById('input-archivo-docente').value='';
+  document.getElementById('up-filename-docente').textContent='Ningún archivo seleccionado';
+  document.getElementById('docente-pags').textContent='0';
+  document.getElementById('docente-tipo-label').textContent = tipoImpDocente==='laser_bn'?'B&N':'Color';
+  document.getElementById('pags-info-docente').style.display='none';
+  const total = document.getElementById('docente-total');
+  if(total) total.textContent='Sin costo';
+  const sub = document.getElementById('docente-cost-sub');
+  if(sub) sub.textContent='El costo se registrará solo para administración.';
+};
+
+function renderUsoDocentes(){
+  const tbody = document.getElementById('t-docentes');
+  const kpi = document.getElementById('kpi-docentes');
+  if(!tbody || !kpi) return;
+
+  const mes = new Date().toISOString().slice(0,7);
+  const delMes = usoDocentesActual.filter(item => item.fecha?.toDate?.().toISOString().slice(0,7) === mes);
+  const costoMes = delMes.reduce((acc, item) => acc + (item.costoGenerado || 0), 0);
+  const excedenteMes = delMes.reduce((acc, item) => acc + (item.costoExcedente || 0), 0);
+  const docentesActivos = new Set(delMes.map(item => item.usuario).filter(Boolean)).size;
+
+  kpi.innerHTML = [
+    {ic:'👩‍🏫', v:docentesActivos, l:'Docentes activos mes', c:'t'},
+    {ic:'📄', v:delMes.length, l:'Impresiones mes', c:'i'},
+    {ic:'🧾', v:$m(costoMes), l:'Costo generado mes', c:'b'},
+    {ic:'💰', v:$m(excedenteMes), l:'Costo excedente mes', c:excedenteMes>0?'r':'gr'},
+  ].map(k=>`<div class="kcard ${k.c}"><span class="kic">${k.ic}</span><div class="kval">${k.v}</div><div class="klbl">${k.l}</div></div>`).join('');
+
+  tbody.innerHTML = usoDocentesActual.length
+    ? usoDocentesActual.map(item => {
+        const fecha = item.fecha?.toDate ? item.fecha.toDate().toLocaleString('es-MX') : '—';
+        const label = LABELS[item.tipoImpresion] || 'B&N';
+        return `<tr>
+          <td>${fecha}</td>
+          <td><strong>${item.usuario||'—'}</strong></td>
+          <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.archivo||'—'}</td>
+          <td>${item.paginas||0}</td>
+          <td>${label}</td>
+          <td><span class="badge ${item.gratuita ? 'bsrv' : 'bpend'}">${item.gratuita ? 'Gratuita' : 'Con costo'}</span></td>
+          <td><strong>${$m(item.costoGenerado||0)}</strong></td>
+          <td>${$m(item.costoExcedente||0)}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="8" class="empty">Sin registros docentes aún</td></tr>';
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // EXPORT

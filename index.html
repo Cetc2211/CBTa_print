@@ -181,8 +181,8 @@ tbody tr:hover{background:var(--paper)}
 .imp-item .imp-actions{display:flex;gap:6px;flex-shrink:0}
 
 /* ALUMNO PANEL */
-#scr-alumno{display:none;align-items:center;justify-content:center;min-height:100vh;background:var(--ink);padding:20px}
-#scr-alumno.on{display:flex;flex-direction:column}
+#scr-alumno,#scr-docente{display:none;align-items:center;justify-content:center;min-height:100vh;background:var(--ink);padding:20px}
+#scr-alumno.on,#scr-docente.on{display:flex;flex-direction:column}
 .acard{background:#fff;border-radius:24px;padding:28px 24px;width:100%;max-width:420px;box-shadow:var(--shl)}
 .acard-header{text-align:center;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--paper2)}
 .acard-header h2{font-size:1.1rem;font-weight:800;color:var(--ink)}
@@ -295,6 +295,10 @@ tbody tr:hover{background:var(--paper)}
     <span class="ric">👨‍🏫</span>
     <div><h3>Administrador</h3><p>Profr. Cecilio o Danika</p></div>
   </button>
+  <button class="rbtn" onclick="selRole(this,'docente')">
+    <span class="ric">🧑‍🏫</span>
+    <div><h3>Docente</h3><p>Registro interno con límite semanal</p></div>
+  </button>
   <button class="rbtn" onclick="selRole(this,'alumno')">
     <span class="ric">🎒</span>
     <div><h3>Alumno</h3><p>Enviar archivo para impresión</p></div>
@@ -346,6 +350,8 @@ tbody tr:hover{background:var(--paper)}
     <button class="nav-btn" onclick="go('productos')"><span class="ic">📦</span> Inventario</button>
     <button class="nav-btn" onclick="go('historial')"><span class="ic">📋</span> Historial</button>
     <button class="nav-btn" onclick="go('stock')"><span class="ic">🔄</span> Ajuste Stock</button>
+    <div class="nav-sec">Docentes</div>
+    <button class="nav-btn" onclick="go('docentes')"><span class="ic">🧑‍🏫</span> Uso Docente</button>
     <div class="nav-sec">Finanzas</div>
     <button class="nav-btn" onclick="go('finanzas')"><span class="ic">💰</span> Egresos</button>
     <div class="nav-sec">Datos</div>
@@ -362,6 +368,7 @@ tbody tr:hover{background:var(--paper)}
   </nav>
   <!-- BOTTOM NAV MORE DRAWER -->
   <div id="bot-more-drawer" style="display:none;position:fixed;bottom:64px;left:0;right:0;background:var(--ink2);border-top:1px solid rgba(255,255,255,.1);z-index:199;padding:8px 0;">
+    <button class="bni" style="flex-direction:row;gap:10px;font-size:.82rem;padding:12px 20px;width:100%;justify-content:flex-start;" onclick="go('docentes');toggleBotMore()"><span class="bic">🧑‍🏫</span>Uso Docente</button>
     <button class="bni" style="flex-direction:row;gap:10px;font-size:.82rem;padding:12px 20px;width:100%;justify-content:flex-start;" onclick="go('historial');toggleBotMore()"><span class="bic">📋</span>Historial</button>
     <button class="bni" style="flex-direction:row;gap:10px;font-size:.82rem;padding:12px 20px;width:100%;justify-content:flex-start;" onclick="go('stock');toggleBotMore()"><span class="bic">🔄</span>Ajuste Stock</button>
     <button class="bni" style="flex-direction:row;gap:10px;font-size:.82rem;padding:12px 20px;width:100%;justify-content:flex-start;" onclick="go('finanzas');toggleBotMore()"><span class="bic">💰</span>Egresos</button>
@@ -545,6 +552,24 @@ tbody tr:hover{background:var(--paper)}
   </div>
 </section>
 
+<!-- USO DOCENTE -->
+<section class="sec" id="s-docentes">
+  <div class="ptitle">🧑‍🏫 Uso Docente</div>
+  <div class="psub">Registro administrativo de impresiones docentes, límite semanal y costos generados</div>
+  <div class="kgrid" id="kpi-docentes"></div>
+  <div class="card">
+    <div class="cbar"><span class="ctitle">Historial de impresiones docentes</span></div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Fecha</th><th>Docente</th><th>Archivo</th><th>Páginas</th><th>Tipo</th><th>Estatus</th><th>Costo generado</th><th>Costo excedente</th></tr>
+        </thead>
+        <tbody id="t-docentes"><tr><td colspan="8" class="empty">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <!-- FINANZAS -->
 <section class="sec" id="s-finanzas">
   <div class="ptitle">💰 Egresos y Finanzas</div>
@@ -650,6 +675,73 @@ tbody tr:hover{background:var(--paper)}
   </div>
 </div>
 
+<!-- ═══════════════ DOCENTE ═══════════════ -->
+
+<div id="scr-docente" class="scr">
+  <div class="acard">
+    <div class="acard-header">
+      <h2>🧑‍🏫 Registro docente</h2>
+      <p id="docente-saludo">Bienvenido</p>
+    </div>
+
+    <div style="background:var(--tl);border:1px solid rgba(14,124,110,.25);border-radius:var(--rs);padding:12px 14px;margin-bottom:14px">
+      <div id="docente-estado" style="font-size:.82rem;font-weight:700;color:var(--teal)">Calculando estado semanal…</div>
+      <div id="docente-resumen" style="font-size:.74rem;color:var(--ink3);margin-top:4px">Usadas esta semana: 0 de 5</div>
+      <div id="docente-aviso" style="display:none;font-size:.74rem;color:var(--red);margin-top:6px">Este envío excede el límite gratuito y generará costo administrativo.</div>
+    </div>
+
+    <div class="fld" style="margin-bottom:14px">
+      <label>Tipo de impresión</label>
+      <div id="tipo-grid-docente">
+        <div class="tipo-card sel" onclick="selTipoDocente(this,'laser_bn')">
+          <span class="tc-icon">🖨️</span>
+          <div class="tc-info"><h4>Láser B&N</h4><p>Registro administrativo por páginas</p></div>
+          <span class="tc-price">$0.50</span>
+        </div>
+        <div class="tipo-card" onclick="selTipoDocente(this,'smart_tank')">
+          <span class="tc-icon">🎨</span>
+          <div class="tc-info"><h4>Color</h4><p>Registro administrativo por páginas</p></div>
+          <span class="tc-price">$2.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="fld" style="margin-bottom:12px">
+      <label>Selecciona tu archivo PDF</label>
+      <div class="upload-area">
+        <input type="file" id="input-archivo-docente" accept=".pdf">
+        <div class="up-icon">📁</div>
+        <p>Toca aquí para seleccionar tu PDF</p>
+        <p class="up-file" id="up-filename-docente">Ningún archivo seleccionado</p>
+      </div>
+    </div>
+
+    <div class="pags-info" id="pags-info-docente" style="display:none">
+      <div class="pag-box">
+        <div class="pv" id="docente-pags">0</div>
+        <div class="pl">Páginas</div>
+      </div>
+      <div class="pag-box">
+        <div class="pv" id="docente-tipo-label">B&N</div>
+        <div class="pl">Tipo</div>
+      </div>
+    </div>
+
+    <div class="cost-display">
+      <div class="cost-label">Costo visible antes de enviar</div>
+      <div class="cost-val" id="docente-total">Sin costo</div>
+      <div class="cost-sub" id="docente-cost-sub">El costo se registrará solo para administración.</div>
+    </div>
+
+    <button class="btn bt wf" style="font-size:.95rem;padding:14px" id="btn-enviar-docente" onclick="enviarArchivoDocente()">
+      📤 Enviar a impresión
+    </button>
+    <button onclick="cerrarSesion()" style="display:block;width:100%;margin-top:10px;background:none;border:none;color:var(--ink3);font-size:.77rem;cursor:pointer;font-family:var(--f)">
+      ← Salir / Cambiar usuario
+    </button>
+  </div>
+</div>
+
 <!-- ═══════════════ MODALES ═══════════════ -->
 
 <!-- Modal Producto (actualizado con foto y descripción) -->
@@ -751,6 +843,17 @@ tbody tr:hover{background:var(--paper)}
       <h2 style="margin-top:12px;font-size:1.2rem;font-weight:800">¡Archivo enviado!</h2>
       <p style="color:var(--ink3);font-size:.84rem;margin-top:6px">Tu documento fue enviado al Profr. Cecilio.<br>Espera a que te llame para recogerlo.</p>
       <button class="btn bi wf" style="margin-top:20px" onclick="closeModal('ov-exito');resetAlumno()">Enviar otro archivo</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="ov-exito-docente">
+  <div class="modal">
+    <div class="mb" style="text-align:center;padding:36px">
+      <div style="font-size:3rem">✅</div>
+      <h2 style="margin-top:12px;font-size:1.2rem;font-weight:800">¡Registro guardado!</h2>
+      <p style="color:var(--ink3);font-size:.84rem;margin-top:6px">La impresión docente quedó registrada en administración y se envió a la cola de impresión.</p>
+      <button class="btn bt wf" style="margin-top:20px" onclick="closeModal('ov-exito-docente')">Continuar</button>
     </div>
   </div>
 </div>

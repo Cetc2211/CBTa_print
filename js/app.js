@@ -1115,15 +1115,25 @@ document.getElementById('input-archivo-docente')?.addEventListener('change', asy
 
   const reader = new FileReader();
   reader.onload = async function(){
+    let numPages = 0;
     try {
       const arr = new Uint8Array(this.result);
       pdfjsLib.GlobalWorkerOptions.workerSrc =
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
       const pdf = await pdfjsLib.getDocument(arr).promise;
-      document.getElementById('docente-pags').textContent = pdf.numPages;
+      numPages = pdf.numPages;
+      document.getElementById('docente-pags').textContent = numPages;
       document.getElementById('pags-info-docente').style.display = 'flex';
-      await actualizarEstadoDocente(pdf.numPages);
-    } catch(e){ toast('Error al leer PDF: '+e.message,'er'); }
+    } catch(e){
+      toast('Error al leer PDF: '+e.message,'er');
+      return;
+    }
+
+    try {
+      await actualizarEstadoDocente(numPages);
+    } catch(e){
+      toast('No se pudo consultar uso docente (Firestore): '+e.message,'er');
+    }
   };
   reader.readAsArrayBuffer(file);
 });

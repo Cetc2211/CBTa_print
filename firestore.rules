@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // IMPORTANTE: el frontend actual no usa Firebase Auth.
+    // Estas reglas priorizan funcionamiento con validaciones basicas.
+
+    match /cola_impresion/{docId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll([
+        'usuario', 'archivo', 'archivoURL', 'paginas', 'tipoImpresion', 'fecha', 'estatus'
+      ])
+      && request.resource.data.usuario is string
+      && request.resource.data.archivo is string
+      && request.resource.data.archivoURL is string
+      && request.resource.data.paginas is int
+      && request.resource.data.paginas > 0
+      && request.resource.data.paginas <= 1000
+      && request.resource.data.tipoImpresion in ['laser_bn', 'smart_tank']
+      && request.resource.data.estatus in ['pendiente', 'impreso', 'cancelado'];
+      allow update, delete: if true;
+    }
+
+    match /uso_docentes/{docId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll([
+        'usuario', 'archivo', 'paginas', 'tipoImpresion', 'precioUnitario',
+        'costoGenerado', 'costoExcedente', 'gratuita', 'weekKey', 'colaId', 'fecha'
+      ])
+      && request.resource.data.usuario is string
+      && request.resource.data.archivo is string
+      && request.resource.data.paginas is int
+      && request.resource.data.paginas > 0
+      && request.resource.data.paginas <= 1000
+      && request.resource.data.tipoImpresion in ['laser_bn', 'smart_tank']
+      && request.resource.data.precioUnitario is number
+      && request.resource.data.costoGenerado is number
+      && request.resource.data.costoExcedente is number
+      && request.resource.data.gratuita is bool
+      && request.resource.data.weekKey is string
+      && request.resource.data.colaId is string;
+      allow update, delete: if false;
+    }
+
+    match /inventario/{docId} {
+      allow read, write: if true;
+    }
+
+    match /ingresos_servicios/{docId} {
+      allow read, write: if true;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

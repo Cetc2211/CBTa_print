@@ -1,0 +1,27 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // IMPORTANTE: el frontend actual no usa Firebase Auth.
+    // Se limita por ruta, tipo y tamano de archivo.
+
+    // PDFs enviados a impresion.
+    match /impresiones/{fileName} {
+      allow read: if true;
+      allow write: if request.resource != null
+        && request.resource.size < 20 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+    }
+
+    // Imagenes de productos.
+    match /productos/{fileName} {
+      allow read: if true;
+      allow write: if request.resource != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

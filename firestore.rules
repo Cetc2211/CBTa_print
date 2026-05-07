@@ -1,8 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // IMPORTANTE: el frontend actual no usa Firebase Auth.
-    // Estas reglas priorizan funcionamiento con validaciones basicas.
+    function isOwner() {
+      return request.auth != null
+        && request.auth.token.email == 'mpceciliotopetecruz@gmail.com';
+    }
 
     match /cola_impresion/{docId} {
       allow read: if true;
@@ -49,8 +51,29 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /historial_ventas/{docId} {
+      allow read, write: if true;
+    }
+
+    // Academic tracker (protegido por correo propietario)
+    match /students/{document=**} {
+      allow read, write: if isOwner();
+    }
+
+    match /alumnos/{document=**} {
+      allow read, write: if isOwner();
+    }
+
+    match /absences/{document=**} {
+      allow read, write: if isOwner();
+    }
+
+    match /tracking_logs/{document=**} {
+      allow read, write: if isOwner();
+    }
+
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isOwner();
     }
   }
 }

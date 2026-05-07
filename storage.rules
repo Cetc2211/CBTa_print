@@ -1,25 +1,37 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // IMPORTANTE: el frontend actual no usa Firebase Auth.
-    // Se limita por ruta, tipo y tamano de archivo.
-
-    // PDFs enviados a impresion.
-    match /impresiones/{fileName} {
+    // Alumnos / usuarios generales
+    match /impresiones/{allPaths=**} {
       allow read: if true;
       allow write: if request.resource != null
         && request.resource.size < 20 * 1024 * 1024
         && request.resource.contentType == 'application/pdf';
     }
 
-    // Imagenes de productos.
-    match /productos/{fileName} {
+    // Docentes (separado para no mezclar con impresiones)
+    match /Docentes/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.resource != null
+        && request.resource.size < 20 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+    }
+
+    // Fotos del catalogo
+    match /productos/{allPaths=**} {
       allow read: if true;
       allow write: if request.resource != null
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
 
+    // Expedientes privados (academic tracker)
+    match /expedientes/{allPaths=**} {
+      allow read, write: if request.auth != null
+        && request.auth.token.email == 'mpceciliotopetecruz@gmail.com';
+    }
+
+    // Cierre global
     match /{allPaths=**} {
       allow read, write: if false;
     }

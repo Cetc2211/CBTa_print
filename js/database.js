@@ -16,12 +16,13 @@ const subirDocumentoACola = async (datos, extras = {}) => {
         if (!datos.archivo) return null;
         const extension = datos.archivo.name.split('.').pop();
         const nombreFinal = `${Date.now()}_${datos.usuario.replace(/\s+/g, '_')}.${extension}`;
-        const storageRef = ref(storage, `impresiones/${nombreFinal}`);
+        const carpetaStorage = (extras.esDocente || datos.origen === 'docente') ? 'Docentes' : 'impresiones';
+        const storageRef = ref(storage, `${carpetaStorage}/${nombreFinal}`);
         
         const snapshot = await uploadBytes(storageRef, datos.archivo);
         const url = await getDownloadURL(snapshot.ref);
 
-        return await addDoc(collection(db, "cola_impresion"), {
+        const colaRef = await addDoc(collection(db, "cola_impresion"), {
             usuario: datos.usuario,
             archivo: datos.archivo.name,
             archivoURL: url,
@@ -29,8 +30,11 @@ const subirDocumentoACola = async (datos, extras = {}) => {
             tipoImpresion: datos.tipoImpresion, // 'laser_bn' o 'smart_tank'
             fecha: serverTimestamp(),
             estatus: 'pendiente',
+            carpetaStorage,
             ...extras,
         });
+
+        return { colaRef, archivoURL: url, carpetaStorage };
     } catch(e) { 
         console.error("Error en subida:", e);
         return null; 
@@ -45,7 +49,7 @@ export const registrarDocumentoDocente = async (datos) => {
     const gratuita = Boolean(datos.gratuita);
     const costoExcedente = gratuita ? 0 : costoGenerado;
 
-    const colaRef = await subirDocumentoACola(datos, {
+    const subida = await subirDocumentoACola(datos, {
         origen: 'docente',
         esDocente: true,
         gratuita,
@@ -55,7 +59,8 @@ export const registrarDocumentoDocente = async (datos) => {
         weekKey: datos.weekKey,
     });
 
-    if (!colaRef) return null;
+    if (!subida) return null;
+    const { colaRef, archivoURL, carpetaStorage } = subida;
 
     const historialRef = await addDoc(collection(db, "uso_docentes"), {
         usuario: datos.usuario,
@@ -71,7 +76,7 @@ export const registrarDocumentoDocente = async (datos) => {
         fecha: serverTimestamp(),
     });
 
-    return { colaRef, historialRef, costoGenerado, costoExcedente, gratuita };
+    return { colaRef, historialRef, costoGenerado, costoExcedente, gratuita, archivoURL, carpetaStorage };
 };
 
 export const contarUsoDocenteSemanal = async (usuario, weekKey) => {

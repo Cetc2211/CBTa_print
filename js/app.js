@@ -35,6 +35,7 @@ let inventario    = [];    // snapshot en tiempo real de Firebase
 let usoDocentesActual = [];
 let adminIniciado = false;
 let docenteResumen = { usados: 0, restantes: DOCENTE_LIMITE_SEMANAL, gratuita: true, costoActual: 0, weekKey: '' };
+let ultimoArchivoDocenteURL = '';
 
 // ─── LOCAL DB (egresos y movimientos de stock — localStorage) ──────
 const LS = {
@@ -1163,6 +1164,7 @@ window.enviarArchivoDocente = async () => {
     });
 
     if(res){
+      ultimoArchivoDocenteURL = res.archivoURL || '';
       document.getElementById('ov-exito-docente').classList.add('on');
       resetDocente();
       await actualizarEstadoDocente(0);
@@ -1175,6 +1177,21 @@ window.enviarArchivoDocente = async () => {
 
   btn.disabled = false;
   btn.innerHTML = '📤 Enviar a impresión';
+};
+
+window.abrirImpresionDocente = () => {
+  if(!ultimoArchivoDocenteURL){
+    toast('No hay archivo reciente para abrir','wa');
+    return;
+  }
+
+  const vista = window.open(ultimoArchivoDocenteURL, '_blank', 'noopener,noreferrer');
+  if(!vista){
+    toast('El navegador bloqueó la ventana. Habilite pop-ups e intente de nuevo','wa');
+    return;
+  }
+
+  toast('Archivo abierto. Use Imprimir desde su navegador o dispositivo','ok');
 };
 
 window.resetDocente = () => {

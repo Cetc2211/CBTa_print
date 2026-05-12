@@ -312,6 +312,8 @@ function renderDash(){
   const mes      = hoy.slice(0,7);
 
   const ventasPagadas = ventasCobradas(ventas);
+  const fiadosPend = ventas.filter(v=>!esVentaCobrada(v));
+  const fiadosPendMonto = fiadosPend.reduce((a,v)=>a+(v.total||0),0);
   const vH = ventasPagadas.filter(v=>fechaContableVenta(v)===hoy);
   const vM = ventasPagadas.filter(v=>fechaContableVenta(v)?.startsWith(mes));
   const eM = egresos.filter(e=>e.fecha.startsWith(mes));
@@ -332,10 +334,11 @@ function renderDash(){
     {ic:'💵', v:$m(tH),    l:'Ventas hoy',          c:''},
     {ic:'📋', v:vH.length,  l:'Transacciones hoy',    c:'t'},
     {ic:'🖨️', v:cola,       l:'Impresiones pendientes',c:'i'},
+    {ic:'📝', v:$m(fiadosPendMonto), l:`Fiado pendiente (${fiadosPend.length})`, c:'r', act:'irAFiadosPendientes()'},
     {ic:'📈', v:$m(tM),    l:'Ingresos del mes',      c:'b'},
     {ic:'✅', v:$m(util),   l:'Utilidad estimada',     c:util>=0?'gr':'r'},
     {ic:'🔴', v:agot,       l:'Productos agotados',    c:agot>0?'r':'gr'},
-  ].map(k=>`<div class="kcard ${k.c}"><span class="kic">${k.ic}</span><div class="kval">${k.v}</div><div class="klbl">${k.l}</div></div>`).join('');
+  ].map(k=>`<div class="kcard ${k.c}" ${k.act?`onclick="${k.act}" style="cursor:pointer" title="Ver en historial"`:''}><span class="kic">${k.ic}</span><div class="kval">${k.v}</div><div class="klbl">${k.l}</div></div>`).join('');
 
   // Alerta stock
   const al = document.getElementById('al-stock');
@@ -384,6 +387,13 @@ function renderDash(){
     ? top.map(([n,d],i)=>`<tr><td><strong>#${i+1}</strong></td><td>${n}</td><td>${d.q}</td><td>${$m(d.r)}</td></tr>`).join('')
     : '<tr><td colspan="4" class="empty">Sin ventas aún</td></tr>';
 }
+
+window.irAFiadosPendientes = () => {
+  go('historial');
+  const est = document.getElementById('h-estado');
+  if(est) est.value = 'fiados';
+  renderHist();
+};
 
 // ═══════════════════════════════════════════════════════════════════
 // COLA DE IMPRESIÓN — renderizado con nuevo diseño
@@ -886,7 +896,8 @@ function renderStockLog(){
 // HISTORIAL — desde localStorage
 // ═══════════════════════════════════════════════════════════════════
 window.renderHist = () => {
-  let v = LS.get('ventas');
+  const todas = LS.get('ventas');
+  let v = [...todas];
   const d = document.getElementById('h-desde')?.value;
   const h = document.getElementById('h-hasta')?.value;
   const est = document.getElementById('h-estado')?.value || 'todos';
@@ -896,6 +907,17 @@ window.renderHist = () => {
   if(est==='fiados') v=v.filter(x=>!esVentaCobrada(x));
   if(est==='cobradas') v=v.filter(x=>esVentaCobrada(x));
   if(q) v=v.filter(x=>(x.items||[]).some(i=>i.nombre?.toLowerCase().includes(q))||x.metodo?.toLowerCase().includes(q)||x.vendedor?.toLowerCase().includes(q)||x.cuentaNombre?.toLowerCase().includes(q));
+
+  const fiadosPend = todas.filter(x=>!esVentaCobrada(x));
+  const hKpi = document.getElementById('h-kpi');
+  if(hKpi){
+    hKpi.innerHTML = [
+      {ic:'📝', v:fiadosPend.length, l:'Fiados pendientes', c:'r'},
+      {ic:'💰', v:$m(fiadosPend.reduce((a,x)=>a+(x.total||0),0)), l:'Monto pendiente por cobrar', c:'r'},
+      {ic:'📄', v:v.length, l:'Registros en vista actual', c:'t'},
+    ].map(k=>`<div class="kcard ${k.c}"><span class="kic">${k.ic}</span><div class="kval">${k.v}</div><div class="klbl">${k.l}</div></div>`).join('');
+  }
+
   const tbody = document.getElementById('t-hist');
   if(!tbody) return;
   tbody.innerHTML=[...v].reverse().map(v=>{

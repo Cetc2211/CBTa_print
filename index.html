@@ -441,6 +441,10 @@ tbody tr:hover{background:var(--paper)}
             <button class="pbtn" onclick="selPago(this,'QR Digital')">📱 QR</button>
             <button class="pbtn" onclick="selPago(this,'Fiado')">📝 Fiado</button>
           </div>
+          <div class="fld" id="v-fiado-wrap" style="margin-top:10px;display:none">
+            <label>Cuenta a nombre de (obligatorio para fiado)</label>
+            <input type="text" id="v-fiado-nombre" placeholder="Nombre del cliente o alumno">
+          </div>
           <div class="fld" style="margin-top:10px">
             <label>Notas (opcional)</label>
             <input type="text" id="v-notas" placeholder="Cliente, referencia…">
@@ -510,7 +514,7 @@ tbody tr:hover{background:var(--paper)}
   <div class="card">
     <table>
       <thead>
-        <tr><th>Folio</th><th>Fecha</th><th>Hora</th><th>Admin</th><th>Items</th><th>Pago</th><th>Total</th><th>Acción</th></tr>
+        <tr><th>Folio</th><th>Fecha</th><th>Hora</th><th>Admin</th><th>Cuenta</th><th>Items</th><th>Pago</th><th>Total</th><th>Acción</th></tr>
       </thead>
       <tbody id="t-hist"></tbody>
     </table>

@@ -573,6 +573,10 @@ window.selPago = (btn, met) => {
   document.querySelectorAll('.pbtn').forEach(b=>b.classList.remove('sel'));
   btn.classList.add('sel');
   metodo = met;
+  const fiadoWrap = document.getElementById('v-fiado-wrap');
+  const fiadoInput = document.getElementById('v-fiado-nombre');
+  if(fiadoWrap) fiadoWrap.style.display = met === 'Fiado' ? 'block' : 'none';
+  if(fiadoInput && met !== 'Fiado') fiadoInput.value = '';
 };
 
 window.confirmarVenta = async () => {
@@ -588,6 +592,11 @@ window.confirmarVenta = async () => {
     const ventas = LS.get('ventas');
     const now    = new Date();
     const esFiado = metodo === 'Fiado';
+    const cuentaNombre = (document.getElementById('v-fiado-nombre')?.value||'').trim();
+    if(esFiado && !cuentaNombre){
+      toast('Indique la cuenta a nombre de para registrar fiado','er');
+      return;
+    }
     const vendedor = localStorage.getItem('usuario_cbta') || '—';
     const fechaHoy = now.toISOString().split('T')[0];
     const horaHoy = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -598,6 +607,7 @@ window.confirmarVenta = async () => {
       hora:  horaHoy,
       items: carrito.map(i=>({nombre:i.nombre,precio:i.precio,tipo:i.tipo,qty:i.qty||1})),
       vendedor,
+      cuentaNombre: esFiado ? cuentaNombre : '',
       metodo,
       notas: document.getElementById('v-notas')?.value||'',
       total: carrito.reduce((a,i)=>a+i.precio,0),
@@ -613,6 +623,7 @@ window.confirmarVenta = async () => {
     carrito=[];
     renderCart();
     if(document.getElementById('v-notas')) document.getElementById('v-notas').value='';
+    if(document.getElementById('v-fiado-nombre')) document.getElementById('v-fiado-nombre').value='';
     renderDash();
   } catch(e) {
     toast('Error al registrar: '+e.message, 'er');
@@ -881,13 +892,13 @@ window.renderHist = () => {
   const q = (document.getElementById('h-q')?.value||'').toLowerCase();
   if(d) v=v.filter(x=>x.fecha>=d);
   if(h) v=v.filter(x=>x.fecha<=h);
-  if(q) v=v.filter(x=>(x.items||[]).some(i=>i.nombre?.toLowerCase().includes(q))||x.metodo?.toLowerCase().includes(q)||x.vendedor?.toLowerCase().includes(q));
+  if(q) v=v.filter(x=>(x.items||[]).some(i=>i.nombre?.toLowerCase().includes(q))||x.metodo?.toLowerCase().includes(q)||x.vendedor?.toLowerCase().includes(q)||x.cuentaNombre?.toLowerCase().includes(q));
   const tbody = document.getElementById('t-hist');
   if(!tbody) return;
   tbody.innerHTML=[...v].reverse().map(v=>{
     const pendiente = !esVentaCobrada(v);
     const pagoTxt = pendiente
-      ? '<span style="color:var(--red);font-weight:700">📝 Fiado pendiente</span>'
+      ? `<span style="color:var(--red);font-weight:700">📝 Fiado pendiente${v.cuentaNombre?` · ${v.cuentaNombre}`:''}</span>`
       : (v.metodoCobroFinal||v.metodo||'—');
     const totalTxt = pendiente
       ? `<strong style="color:var(--red)">${$m(v.total)}</strong>`
@@ -900,12 +911,13 @@ window.renderHist = () => {
     <td>${fd(v.fecha)}</td>
     <td>${v.hora||'—'}</td>
     <td>${v.vendedor||'—'}</td>
+    <td>${v.cuentaNombre||'—'}</td>
     <td style="max-width:190px">${(v.items||[]).map(i=>`<div style="font-size:.77rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i.qty||1}× ${i.nombre}</div>`).join('')}</td>
     <td>${pagoTxt}</td>
     <td>${totalTxt}</td>
     <td>${accion}</td>
   </tr>`;
-  }).join('')||'<tr><td colspan="8" class="empty">Sin ventas en este período</td></tr>';
+  }).join('')||'<tr><td colspan="9" class="empty">Sin ventas en este período</td></tr>';
 };
 
 window.marcarFiadoPagado = (id) => {

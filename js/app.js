@@ -57,6 +57,20 @@ function toast(msg, t=''){
 const $m = n => '$' + (n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const fd = d => { if(!d) return ''; const [y,mo,dd]=d.split('-'); return `${dd}/${mo}/${y}`; };
 
+function esVentaCobrada(v){
+  if(typeof v?.cobrado === 'boolean') return v.cobrado;
+  return (v?.metodo||'').toLowerCase() !== 'fiado';
+}
+
+function fechaContableVenta(v){
+  if(!esVentaCobrada(v)) return null;
+  return v.fechaCobro || v.fecha;
+}
+
+function ventasCobradas(arr=[]){
+  return arr.filter(v=>esVentaCobrada(v));
+}
+
 function getWeekKey(date = new Date()){
   const base = new Date(date);
   base.setHours(0,0,0,0);
@@ -297,8 +311,9 @@ function renderDash(){
   const hoy      = new Date().toISOString().split('T')[0];
   const mes      = hoy.slice(0,7);
 
-  const vH = ventas.filter(v=>v.fecha===hoy);
-  const vM = ventas.filter(v=>v.fecha.startsWith(mes));
+  const ventasPagadas = ventasCobradas(ventas);
+  const vH = ventasPagadas.filter(v=>fechaContableVenta(v)===hoy);
+  const vM = ventasPagadas.filter(v=>fechaContableVenta(v)?.startsWith(mes));
   const eM = egresos.filter(e=>e.fecha.startsWith(mes));
 
   const tH   = vH.reduce((a,v)=>a+v.total,0);
@@ -337,7 +352,7 @@ function renderDash(){
     const dt=new Date(); dt.setDate(dt.getDate()-i);
     const ds=dt.toISOString().split('T')[0];
     labs.push(['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][dt.getDay()]);
-    vals.push(ventas.filter(v=>v.fecha===ds).reduce((a,v)=>a+v.total,0));
+    vals.push(ventasPagadas.filter(v=>fechaContableVenta(v)===ds).reduce((a,v)=>a+v.total,0));
   }
   if(chSem) chSem.destroy();
   const cSem = document.getElementById('c-sem');
@@ -347,8 +362,8 @@ function renderDash(){
       scales:{y:{beginAtZero:true,ticks:{callback:v=>$m(v)}}}}});
 
   // Gráfica impresiones vs productos
-  const impTotal = ventas.flatMap(v=>v.items||[]).filter(i=>i.tipo==='impresion').reduce((a,i)=>a+(i.precio||0),0);
-  const prodTotal = ventas.flatMap(v=>v.items||[]).filter(i=>i.tipo==='producto').reduce((a,i)=>a+(i.precio||0),0);
+  const impTotal = ventasPagadas.flatMap(v=>v.items||[]).filter(i=>i.tipo==='impresion').reduce((a,i)=>a+(i.precio||0),0);
+  const prodTotal = ventasPagadas.flatMap(v=>v.items||[]).filter(i=>i.tipo==='producto').reduce((a,i)=>a+(i.precio||0),0);
   if(chTipo) chTipo.destroy();
   const cTipo = document.getElementById('c-tipo');
   if(cTipo) chTipo = new Chart(cTipo,{type:'doughnut',
@@ -359,7 +374,7 @@ function renderDash(){
 
   // Top 5
   const cnt={};
-  ventas.forEach(v=>(v.items||[]).forEach(i=>{
+  ventasPagadas.forEach(v=>(v.items||[]).forEach(i=>{
     if(!cnt[i.nombre]) cnt[i.nombre]={q:0,r:0};
     cnt[i.nombre].q+=1; cnt[i.nombre].r+=(i.precio||0);
   }));
@@ -572,18 +587,27 @@ window.confirmarVenta = async () => {
     // Guardar en localStorage para dashboard/historial
     const ventas = LS.get('ventas');
     const now    = new Date();
+    const esFiado = metodo === 'Fiado';
+    const fechaHoy = now.toISOString().split('T')[0];
+    const horaHoy = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
     ventas.push({
       id: 'V-'+String(ventas.length+1).padStart(4,'0'),
-      fecha: now.toISOString().split('T')[0],
-      hora:  `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+      fecha: fechaHoy,
+      hora:  horaHoy,
       items: carrito.map(i=>({nombre:i.nombre,precio:i.precio,tipo:i.tipo,qty:i.qty||1})),
       metodo,
       notas: document.getElementById('v-notas')?.value||'',
       total: carrito.reduce((a,i)=>a+i.precio,0),
+      cobrado: !esFiado,
+      fechaCobro: esFiado ? '' : fechaHoy,
+      horaCobro: esFiado ? '' : horaHoy,
+      metodoCobroFinal: esFiado ? '' : metodo,
     });
     LS.set('ventas', ventas);
 
-    toast(`✅ Cobro registrado — ${$m(carrito.reduce((a,i)=>a+i.precio,0))}`, 'ok');
+    if(esFiado) toast(`📝 Fiado pendiente registrado — ${$m(carrito.reduce((a,i)=>a+i.precio,0))}`, 'wa');
+    else toast(`✅ Cobro registrado — ${$m(carrito.reduce((a,i)=>a+i.precio,0))}`, 'ok');
     carrito=[];
     renderCart();
     if(document.getElementById('v-notas')) document.getElementById('v-notas').value='';
@@ -858,14 +882,49 @@ window.renderHist = () => {
   if(q) v=v.filter(x=>(x.items||[]).some(i=>i.nombre?.toLowerCase().includes(q))||x.metodo?.toLowerCase().includes(q));
   const tbody = document.getElementById('t-hist');
   if(!tbody) return;
-  tbody.innerHTML=[...v].reverse().map(v=>`<tr>
+  tbody.innerHTML=[...v].reverse().map(v=>{
+    const pendiente = !esVentaCobrada(v);
+    const pagoTxt = pendiente
+      ? '<span style="color:var(--red);font-weight:700">📝 Fiado pendiente</span>'
+      : (v.metodoCobroFinal||v.metodo||'—');
+    const totalTxt = pendiente
+      ? `<strong style="color:var(--red)">${$m(v.total)}</strong>`
+      : `<strong>${$m(v.total)}</strong>`;
+    const accion = pendiente
+      ? `<button class="btn bt bsm" onclick="marcarFiadoPagado('${v.id}')">✅ Marcar pagado</button>`
+      : `<span style="font-size:.72rem;color:var(--green);font-weight:700">Cobrado ${v.fechaCobro?fd(v.fechaCobro):''}</span>`;
+    return `<tr style="${pendiente?'background:var(--rl)':''}">
     <td><code style="font-family:var(--m);font-size:.77rem">${v.id}</code></td>
     <td>${fd(v.fecha)}</td>
     <td>${v.hora||'—'}</td>
     <td style="max-width:190px">${(v.items||[]).map(i=>`<div style="font-size:.77rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i.qty||1}× ${i.nombre}</div>`).join('')}</td>
-    <td>${v.metodo||'—'}</td>
-    <td><strong>${$m(v.total)}</strong></td>
-  </tr>`).join('')||'<tr><td colspan="6" class="empty">Sin ventas en este período</td></tr>';
+    <td>${pagoTxt}</td>
+    <td>${totalTxt}</td>
+    <td>${accion}</td>
+  </tr>`;
+  }).join('')||'<tr><td colspan="7" class="empty">Sin ventas en este período</td></tr>';
+};
+
+window.marcarFiadoPagado = (id) => {
+  const ventas = LS.get('ventas');
+  const idx = ventas.findIndex(v=>v.id===id);
+  if(idx<0){ toast('Venta no encontrada','er'); return; }
+  if(esVentaCobrada(ventas[idx])){ toast('Esta venta ya está cobrada','wa'); return; }
+
+  const metodoPago = prompt('Método de pago recibido (ej. Efectivo, Transferencia):', 'Efectivo');
+  if(metodoPago===null) return;
+
+  const now = new Date();
+  ventas[idx].cobrado = true;
+  ventas[idx].fechaCobro = now.toISOString().split('T')[0];
+  ventas[idx].horaCobro = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  ventas[idx].metodoCobroFinal = metodoPago.trim() || 'Efectivo';
+  LS.set('ventas', ventas);
+
+  renderHist();
+  renderDash();
+  renderFinanzas();
+  toast('✅ Fiado marcado como pagado','ok');
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -875,7 +934,8 @@ function renderFinanzas(){
   const eg  = LS.get('egresos');
   const ven = LS.get('ventas');
   const mes = new Date().toISOString().split('T')[0].slice(0,7);
-  const iM  = ven.filter(v=>v.fecha.startsWith(mes)).reduce((a,v)=>a+v.total,0);
+  const venPagadas = ventasCobradas(ven);
+  const iM  = venPagadas.filter(v=>fechaContableVenta(v)?.startsWith(mes)).reduce((a,v)=>a+v.total,0);
   const eM  = eg.filter(e=>e.fecha.startsWith(mes)).reduce((a,e)=>a+e.monto,0);
   const ut  = iM-eM;
 

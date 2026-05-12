@@ -283,7 +283,7 @@ window.go = (s) => {
   if(s==='historial') renderHist();
   if(s==='stock')     renderStockSelect();
   if(s==='finanzas')  renderFinanzas();
-  if(s==='venta')     { renderProdList(); renderCart(); renderColaVenta(); }
+  if(s==='venta')     { renderProdList(); renderCart(); renderColaVenta(); syncMetodoPagoUI(); }
   if(s==='cola')      renderColaFull();
   if(s==='docentes')  renderUsoDocentes();
 };
@@ -583,11 +583,20 @@ window.selPago = (btn, met) => {
   document.querySelectorAll('.pbtn').forEach(b=>b.classList.remove('sel'));
   btn.classList.add('sel');
   metodo = met;
+  syncMetodoPagoUI();
+};
+
+function syncMetodoPagoUI(){
   const fiadoWrap = document.getElementById('v-fiado-wrap');
   const fiadoInput = document.getElementById('v-fiado-nombre');
-  if(fiadoWrap) fiadoWrap.style.display = met === 'Fiado' ? 'block' : 'none';
-  if(fiadoInput && met !== 'Fiado') fiadoInput.value = '';
-};
+  if(fiadoWrap) fiadoWrap.style.display = metodo === 'Fiado' ? 'block' : 'none';
+  if(fiadoInput && metodo !== 'Fiado') fiadoInput.value = '';
+
+  // Re-sincroniza selección visual en botones, útil al volver a la vista de venta.
+  document.querySelectorAll('.pbtn').forEach(b=>{
+    b.classList.toggle('sel', b.dataset.met === metodo);
+  });
+}
 
 window.confirmarVenta = async () => {
   if(!carrito.length){ toast('El carrito está vacío','er'); return; }

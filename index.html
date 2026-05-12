@@ -434,12 +434,12 @@ tbody tr:hover{background:var(--paper)}
         <div class="cbar"><span class="ctitle">💳 Método de pago</span></div>
         <div style="padding:12px 14px">
           <div class="pgrid" id="pgrid">
-            <button class="pbtn sel" onclick="selPago(this,'Efectivo')">💵 Efectivo</button>
-            <button class="pbtn" onclick="selPago(this,'T. Débito')">💳 Débito</button>
-            <button class="pbtn" onclick="selPago(this,'T. Crédito')">💳 Crédito</button>
-            <button class="pbtn" onclick="selPago(this,'Transferencia')">📲 Transf.</button>
-            <button class="pbtn" onclick="selPago(this,'QR Digital')">📱 QR</button>
-            <button class="pbtn" onclick="selPago(this,'Fiado')">📝 Fiado</button>
+            <button class="pbtn sel" data-met="Efectivo" onclick="selPago(this,'Efectivo')">💵 Efectivo</button>
+            <button class="pbtn" data-met="T. Débito" onclick="selPago(this,'T. Débito')">💳 Débito</button>
+            <button class="pbtn" data-met="T. Crédito" onclick="selPago(this,'T. Crédito')">💳 Crédito</button>
+            <button class="pbtn" data-met="Transferencia" onclick="selPago(this,'Transferencia')">📲 Transf.</button>
+            <button class="pbtn" data-met="QR Digital" onclick="selPago(this,'QR Digital')">📱 QR</button>
+            <button class="pbtn" data-met="Fiado" onclick="selPago(this,'Fiado')">📝 Fiado</button>
           </div>
           <div class="fld" id="v-fiado-wrap" style="margin-top:10px;display:none">
             <label>Cuenta a nombre de (obligatorio para fiado)</label>
@@ -520,12 +520,14 @@ tbody tr:hover{background:var(--paper)}
   </div>
   <div class="kgrid" id="h-kpi"></div>
   <div class="card">
-    <table>
-      <thead>
-        <tr><th>Folio</th><th>Fecha</th><th>Hora</th><th>Admin</th><th>Cuenta</th><th>Items</th><th>Pago</th><th>Total</th><th>Acción</th></tr>
-      </thead>
-      <tbody id="t-hist"></tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Folio</th><th>Fecha</th><th>Hora</th><th>Admin</th><th>Cuenta</th><th>Items</th><th>Pago</th><th>Total</th><th>Acción</th></tr>
+        </thead>
+        <tbody id="t-hist"></tbody>
+      </table>
+    </div>
   </div>
 </section>
 

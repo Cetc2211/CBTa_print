@@ -889,9 +889,12 @@ window.renderHist = () => {
   let v = LS.get('ventas');
   const d = document.getElementById('h-desde')?.value;
   const h = document.getElementById('h-hasta')?.value;
+  const est = document.getElementById('h-estado')?.value || 'todos';
   const q = (document.getElementById('h-q')?.value||'').toLowerCase();
   if(d) v=v.filter(x=>x.fecha>=d);
   if(h) v=v.filter(x=>x.fecha<=h);
+  if(est==='fiados') v=v.filter(x=>!esVentaCobrada(x));
+  if(est==='cobradas') v=v.filter(x=>esVentaCobrada(x));
   if(q) v=v.filter(x=>(x.items||[]).some(i=>i.nombre?.toLowerCase().includes(q))||x.metodo?.toLowerCase().includes(q)||x.vendedor?.toLowerCase().includes(q)||x.cuentaNombre?.toLowerCase().includes(q));
   const tbody = document.getElementById('t-hist');
   if(!tbody) return;

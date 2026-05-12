@@ -507,6 +507,13 @@ tbody tr:hover{background:var(--paper)}
   <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
     <div class="fld" style="width:140px"><label>Desde</label><input type="date" id="h-desde"></div>
     <div class="fld" style="width:140px"><label>Hasta</label><input type="date" id="h-hasta"></div>
+    <div class="fld" style="width:210px"><label>Estatus</label>
+      <select id="h-estado" oninput="renderHist()">
+        <option value="todos">Todos</option>
+        <option value="fiados">Solo fiados pendientes</option>
+        <option value="cobradas">Solo cobradas</option>
+      </select>
+    </div>
     <div class="fld" style="flex:1;min-width:130px"><label>Buscar</label>
       <div class="sb"><input type="text" id="h-q" placeholder="Producto, alumno…" oninput="renderHist()"></div></div>
     <div style="align-self:flex-end"><button class="btn bs" onclick="renderHist()">Filtrar</button></div>

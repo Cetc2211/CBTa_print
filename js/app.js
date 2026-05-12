@@ -588,6 +588,7 @@ window.confirmarVenta = async () => {
     const ventas = LS.get('ventas');
     const now    = new Date();
     const esFiado = metodo === 'Fiado';
+    const vendedor = localStorage.getItem('usuario_cbta') || '—';
     const fechaHoy = now.toISOString().split('T')[0];
     const horaHoy = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 
@@ -596,6 +597,7 @@ window.confirmarVenta = async () => {
       fecha: fechaHoy,
       hora:  horaHoy,
       items: carrito.map(i=>({nombre:i.nombre,precio:i.precio,tipo:i.tipo,qty:i.qty||1})),
+      vendedor,
       metodo,
       notas: document.getElementById('v-notas')?.value||'',
       total: carrito.reduce((a,i)=>a+i.precio,0),
@@ -879,7 +881,7 @@ window.renderHist = () => {
   const q = (document.getElementById('h-q')?.value||'').toLowerCase();
   if(d) v=v.filter(x=>x.fecha>=d);
   if(h) v=v.filter(x=>x.fecha<=h);
-  if(q) v=v.filter(x=>(x.items||[]).some(i=>i.nombre?.toLowerCase().includes(q))||x.metodo?.toLowerCase().includes(q));
+  if(q) v=v.filter(x=>(x.items||[]).some(i=>i.nombre?.toLowerCase().includes(q))||x.metodo?.toLowerCase().includes(q)||x.vendedor?.toLowerCase().includes(q));
   const tbody = document.getElementById('t-hist');
   if(!tbody) return;
   tbody.innerHTML=[...v].reverse().map(v=>{
@@ -897,12 +899,13 @@ window.renderHist = () => {
     <td><code style="font-family:var(--m);font-size:.77rem">${v.id}</code></td>
     <td>${fd(v.fecha)}</td>
     <td>${v.hora||'—'}</td>
+    <td>${v.vendedor||'—'}</td>
     <td style="max-width:190px">${(v.items||[]).map(i=>`<div style="font-size:.77rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i.qty||1}× ${i.nombre}</div>`).join('')}</td>
     <td>${pagoTxt}</td>
     <td>${totalTxt}</td>
     <td>${accion}</td>
   </tr>`;
-  }).join('')||'<tr><td colspan="7" class="empty">Sin ventas en este período</td></tr>';
+  }).join('')||'<tr><td colspan="8" class="empty">Sin ventas en este período</td></tr>';
 };
 
 window.marcarFiadoPagado = (id) => {

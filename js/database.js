@@ -16,8 +16,7 @@ const subirDocumentoACola = async (datos, extras = {}) => {
         if (!datos.archivo) return null;
         const extension = datos.archivo.name.split('.').pop();
         const nombreFinal = `${Date.now()}_${datos.usuario.replace(/\s+/g, '_')}.${extension}`;
-        const carpetaStorage = (extras.esDocente || datos.origen === 'docente') ? 'Docentes' : 'impresiones';
-        const storageRef = ref(storage, `${carpetaStorage}/${nombreFinal}`);
+        const storageRef = ref(storage, `impresiones/${nombreFinal}`);
         
         const snapshot = await uploadBytes(storageRef, datos.archivo);
         const url = await getDownloadURL(snapshot.ref);
@@ -43,56 +42,6 @@ const subirDocumentoACola = async (datos, extras = {}) => {
 
 // Enviar Archivo (Alumno)
 export const enviarDocumentoNube = async (datos) => subirDocumentoACola(datos);
-
-export const registrarDocumentoDocente = async (datos) => {
-    const costoGenerado = Number(datos.paginas) * Number(datos.precioUnitario || 0);
-    const gratuita = Boolean(datos.gratuita);
-    const costoExcedente = gratuita ? 0 : costoGenerado;
-
-    const subida = await subirDocumentoACola(datos, {
-        origen: 'docente',
-        esDocente: true,
-        gratuita,
-        costoGenerado,
-        costoExcedente,
-        docente: datos.usuario,
-        weekKey: datos.weekKey,
-    });
-
-    if (!subida) return null;
-    const { colaRef, archivoURL, carpetaStorage } = subida;
-
-    const historialRef = await addDoc(collection(db, "uso_docentes"), {
-        usuario: datos.usuario,
-        archivo: datos.archivo.name,
-        paginas: Number(datos.paginas),
-        tipoImpresion: datos.tipoImpresion,
-        precioUnitario: Number(datos.precioUnitario || 0),
-        costoGenerado,
-        costoExcedente,
-        gratuita,
-        weekKey: datos.weekKey,
-        colaId: colaRef.id,
-        fecha: serverTimestamp(),
-    });
-
-    return { colaRef, historialRef, costoGenerado, costoExcedente, gratuita, archivoURL, carpetaStorage };
-};
-
-export const contarUsoDocenteSemanal = async (usuario, weekKey) => {
-    const q = query(
-        collection(db, "uso_docentes"),
-        where("usuario", "==", usuario),
-        where("weekKey", "==", weekKey)
-    );
-    const snap = await getDocs(q);
-    return snap.size;
-};
-
-export const escucharUsoDocentes = (callback) => {
-    const q = query(collection(db, "uso_docentes"), orderBy("fecha", "desc"), limit(100));
-    return onSnapshot(q, callback);
-};
 
 // Inventario
 export const escucharInventarioDB = (callback) => onSnapshot(collection(db, "inventario"), callback);

@@ -22,27 +22,6 @@ service cloud.firestore {
       allow update, delete: if true;
     }
 
-    match /uso_docentes/{docId} {
-      allow read: if true;
-      allow create: if request.resource.data.keys().hasAll([
-        'usuario', 'archivo', 'paginas', 'tipoImpresion', 'precioUnitario',
-        'costoGenerado', 'costoExcedente', 'gratuita', 'weekKey', 'colaId', 'fecha'
-      ])
-      && request.resource.data.usuario is string
-      && request.resource.data.archivo is string
-      && request.resource.data.paginas is int
-      && request.resource.data.paginas > 0
-      && request.resource.data.paginas <= 1000
-      && request.resource.data.tipoImpresion in ['laser_bn', 'smart_tank']
-      && request.resource.data.precioUnitario is number
-      && request.resource.data.costoGenerado is number
-      && request.resource.data.costoExcedente is number
-      && request.resource.data.gratuita is bool
-      && request.resource.data.weekKey is string
-      && request.resource.data.colaId is string;
-      allow update, delete: if false;
-    }
-
     match /inventario/{docId} {
       allow read, write: if true;
     }

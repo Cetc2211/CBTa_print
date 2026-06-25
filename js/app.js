@@ -10,32 +10,24 @@ import {
   guardarNuevoProducto,
   actualizarProducto,
   eliminarRegistro,
-  registrarDocumentoDocente,
-  contarUsoDocenteSemanal,
-  escucharUsoDocentes,
 } from "./database.js";
 import { subirFotoProducto, eliminarFotoProducto } from "./database_additions.js";
 
 // ─── PRECIOS (misma config que el original) ────────────────────────
 const PRECIOS = { laser_bn: 0.50, smart_tank: 2.00 };
 const LABELS  = { laser_bn: 'Láser B&N', smart_tank: 'Smart Tank Color' };
-const DOCENTE_LIMITE_SEMANAL = 5;
 
 // ─── ESTADO GLOBAL ─────────────────────────────────────────────────
 let carrito       = [];
 let metodo        = 'Efectivo';
 let editProdId    = null;
 let tipoImpAlumno = 'laser_bn';
-let tipoImpDocente = 'laser_bn';
 let scanStream    = null;
 let scanTimer     = null;
 let chSem = null, chTipo = null;
 let colaActual    = [];    // snapshot en tiempo real de Firebase
 let inventario    = [];    // snapshot en tiempo real de Firebase
-let usoDocentesActual = [];
 let adminIniciado = false;
-let docenteResumen = { usados: 0, restantes: DOCENTE_LIMITE_SEMANAL, gratuita: true, costoActual: 0, weekKey: '' };
-let ultimoArchivoDocenteURL = '';
 
 // ─── LOCAL DB (egresos y movimientos de stock — localStorage) ──────
 const LS = {
@@ -139,11 +131,6 @@ window.entrar = () => {
     localStorage.setItem('usuario_cbta', nombre);
     localStorage.removeItem('rol_cbta');
     mostrarAdmin(nombre);
-  } else if(roleSelected === 'docente') {
-    if(nombre.length < 2){ toast('Nombre demasiado corto','er'); return; }
-    localStorage.setItem('usuario_cbta', nombre);
-    localStorage.setItem('rol_cbta', 'docente');
-    mostrarDocente(nombre);
   } else {
     if(nombre.length < 2){ toast('Nombre demasiado corto','er'); return; }
     localStorage.setItem('usuario_cbta', nombre);
@@ -170,8 +157,8 @@ function verificarSesion(){
     showScreen('scr-login');
   } else if(ADMINS[user]){
     mostrarAdmin(user);
-  } else if(localStorage.getItem('rol_cbta') === 'docente') {
-    mostrarDocente(user);
+  } else if(localStorage.getItem('rol_cbta') === 'alumno') {
+    mostrarAlumno(user);
   } else {
     mostrarAlumno(user);
   }
@@ -182,13 +169,6 @@ function mostrarAdmin(nombre){
   document.getElementById('admin-nombre').textContent = 'Prof. ' + nombre;
   iniciarAdmin();
   setDate();
-}
-
-function mostrarDocente(nombre){
-  showScreen('scr-docente');
-  const saludo = document.getElementById('docente-saludo');
-  if(saludo) saludo.textContent = `Hola, ${nombre} 👋`;
-  actualizarEstadoDocente();
 }
 
 function mostrarAlumno(nombre){
@@ -232,11 +212,6 @@ function iniciarAdmin(){
     renderProdList();
     renderStockSelect();
     renderDash();
-  });
-
-  escucharUsoDocentes(snap => {
-    usoDocentesActual = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if(document.getElementById('s-docentes')?.classList.contains('on')) renderUsoDocentes();
   });
 
   renderDash();
@@ -285,7 +260,6 @@ window.go = (s) => {
   if(s==='finanzas')  renderFinanzas();
   if(s==='venta')     { renderProdList(); renderCart(); renderColaVenta(); syncMetodoPagoUI(); }
   if(s==='cola')      renderColaFull();
-  if(s==='docentes')  renderUsoDocentes();
 };
 
 window.toggleBotMore = () => {
@@ -400,20 +374,18 @@ window.irAFiadosPendientes = () => {
 // ═══════════════════════════════════════════════════════════════════
 function renderColaImpresion(){
   // Para el panel de venta rápida (mini)
-  const colaVenta = colaActual.filter(doc=>!doc.esDocente);
   const miniCount = document.getElementById('cola-venta-count');
-  if(miniCount) miniCount.textContent = colaVenta.length;
+  if(miniCount) miniCount.textContent = colaActual.length;
 }
 
 function renderColaVenta(){
   const el = document.getElementById('cola-venta-list');
   if(!el) return;
-  const colaVenta = colaActual.filter(doc=>!doc.esDocente);
-  if(colaVenta.length===0){
+  if(colaActual.length===0){
     el.innerHTML='<div class="empty">Sin impresiones pendientes</div>';
     return;
   }
-  el.innerHTML = colaVenta.map(doc=>{
+  el.innerHTML = colaActual.map(doc=>{
     const precio = PRECIOS[doc.tipoImpresion]||0.5;
     const total  = (doc.paginas * precio).toFixed(2);
     const label  = LABELS[doc.tipoImpresion]||'B&N';
@@ -445,14 +417,9 @@ function renderColaFull(){
     const total  = (doc.paginas * precio).toFixed(2);
     const label  = LABELS[doc.tipoImpresion]||'B&N';
     const fecha  = doc.fecha?.toDate ? doc.fecha.toDate().toLocaleString('es-MX') : '—';
-    const esDocente = Boolean(doc.esDocente);
-    const badgeEstado = esDocente
-      ? `<span class="badge ${doc.gratuita ? 'bsrv' : 'bpend'}">${doc.gratuita ? 'Uso docente gratuito' : 'Docente con costo'}</span>`
-      : '<span class="badge bpend">⏳ Pendiente</span>';
-    const accionPrincipal = esDocente
-      ? `<div style="font-size:.77rem;color:var(--ink3);text-align:right">Costo generado: <strong>${$m(doc.costoGenerado||0)}</strong></div>`
-      : `<button class="btn bi bsm wf" style="justify-content:center"
-          onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas},'${label}');go('venta')">
+    const badgeEstado = '<span class="badge bpend">⏳ Pendiente</span>';
+    const accionPrincipal = `<button class="btn bi bsm wf" style="justify-content:center"
+          onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas}','${label}');go('venta')">
           🛒 Cobrar $${total}
         </button>`;
     return `<div class="imp-item card" style="margin-bottom:10px;padding:16px 18px">
@@ -479,11 +446,6 @@ function renderColaFull(){
 // CARRITO — Unifica impresiones + productos
 // ═══════════════════════════════════════════════════════════════════
 window.addImpToCart = (id, nombre, precio, usuario, paginas, label) => {
-  const doc = colaActual.find(item => item.id === id);
-  if(doc?.esDocente){
-    toast('Los registros docentes no se cobran desde caja','wa');
-    return;
-  }
   carrito.push({
     id, nombre: `🖨️ ${nombre} (${paginas} págs)`,
     precio: parseFloat(precio), tipo: 'impresion',
@@ -1123,7 +1085,20 @@ window.selTipo = (el, tipo) => {
 
 document.getElementById('input-archivo')?.addEventListener('change', async (e) => {
   const file = e.target.files[0];
-  if(!file||file.type!=='application/pdf'){ toast('Solo se aceptan archivos PDF','er'); return; }
+  if(!file) return;
+
+  // Ocultar preview de imagen previo
+  ocultarPreviewImagen();
+
+  if(esImagen(file)){
+    // Flujo de imagen
+    document.getElementById('up-filename').textContent = file.name;
+    document.getElementById('alumno-cost-sub').textContent = 'Procesando imagen…';
+    mostrarPreviewImagen(file);
+    return;
+  }
+
+  if(file.type!=='application/pdf'){ toast('Solo se aceptan archivos PDF o imágenes (JPG, PNG, WEBP)','er'); return; }
   document.getElementById('up-filename').textContent = file.name;
   document.getElementById('alumno-cost-sub').textContent = 'Leyendo PDF…';
 
@@ -1160,7 +1135,21 @@ window.enviarArchivo = async () => {
   const btn = document.getElementById('btn-enviar');
   btn.disabled=true; btn.textContent='Enviando…';
 
-  const ok = await enviarDocumentoNube({ usuario, archivo, paginas, tipoImpresion:tipoImpAlumno });
+  // Si es imagen, convertir a PDF primero
+  let archivoFinal = archivo;
+  if(esImagen(archivo) && imagenActual){
+    try {
+      btn.textContent = 'Convirtiendo imagen a PDF…';
+      const pdfBlob = await imagenAPdfBlob(imagenActual, imagenRotation);
+      archivoFinal = new File([pdfBlob], archivo.name.replace(/\.[^.]+$/, '.pdf'), { type: 'application/pdf' });
+    } catch(e){
+      toast('Error al convertir imagen: '+e.message,'er');
+      btn.disabled=false; btn.innerHTML='📤 Enviar al Profr. Cecilio';
+      return;
+    }
+  }
+
+  const ok = await enviarDocumentoNube({ usuario, archivo: archivoFinal, paginas, tipoImpresion:tipoImpAlumno });
   btn.disabled=false; btn.innerHTML='📤 Enviar al Profr. Cecilio';
 
   if(ok){ document.getElementById('ov-exito').classList.add('on'); }
@@ -1174,181 +1163,132 @@ window.resetAlumno = () => {
   document.getElementById('pags-info').style.display='none';
   document.getElementById('alumno-total').textContent='$0.00';
   document.getElementById('alumno-cost-sub').textContent='Seleccione un archivo para calcular';
+  ocultarPreviewImagen();
 };
 
 // ═══════════════════════════════════════════════════════════════════
-// PANEL DOCENTE
+// SOPORTE DE IMAGENES
 // ═══════════════════════════════════════════════════════════════════
-async function actualizarEstadoDocente(paginas = null){
-  const usuario = localStorage.getItem('usuario_cbta');
-  if(!usuario) return;
 
-  const weekKey = getWeekKey();
-  const usados = await contarUsoDocenteSemanal(usuario, weekKey);
-  const restantes = Math.max(0, DOCENTE_LIMITE_SEMANAL - usados);
-  const gratuita = usados < DOCENTE_LIMITE_SEMANAL;
-  const nPaginas = paginas ?? (parseInt(document.getElementById('docente-pags')?.textContent) || 0);
-  const costoActual = nPaginas * (PRECIOS[tipoImpDocente] || 0);
+let imagenActual = null;       // Image object actual (con rotaciones)
+let imagenRotation = 0;        // grados de rotación actuales
+let imagenOriginalSrc = null;  // data URL de la imagen original
 
-  docenteResumen = { usados, restantes, gratuita, costoActual, weekKey };
-
-  const estado = document.getElementById('docente-estado');
-  const resumen = document.getElementById('docente-resumen');
-  const total = document.getElementById('docente-total');
-  const sub = document.getElementById('docente-cost-sub');
-  const aviso = document.getElementById('docente-aviso');
-
-  if(estado) estado.textContent = gratuita
-    ? `Te quedan ${restantes} impresión${restantes!==1?'es':''} gratuita${restantes!==1?'s':''} esta semana.`
-    : 'Límite semanal gratuito excedido. Este envío generará costo.';
-  if(resumen) resumen.textContent = `Usadas esta semana: ${usados} de ${DOCENTE_LIMITE_SEMANAL}`;
-  if(total) total.textContent = gratuita ? 'Sin costo' : $m(costoActual);
-  if(sub) sub.textContent = gratuita
-    ? 'El costo se registrará solo para administración.'
-    : (nPaginas > 0 ? `${nPaginas} página${nPaginas!==1?'s':''} × ${$m(PRECIOS[tipoImpDocente])}` : 'Seleccione un archivo para calcular');
-  if(aviso) aviso.style.display = gratuita ? 'none' : 'block';
+function esImagen(file) {
+  return file && file.type.startsWith('image/');
 }
 
-window.selTipoDocente = (el, tipo) => {
-  document.querySelectorAll('#tipo-grid-docente .tipo-card').forEach(c=>c.classList.remove('sel'));
-  el.classList.add('sel');
-  tipoImpDocente = tipo;
-  document.getElementById('docente-tipo-label').textContent = tipo==='laser_bn'?'B&N':'Color';
-  actualizarEstadoDocente();
-};
+function mostrarPreviewImagen(file) {
+  const wrap = document.getElementById('img-preview-wrap');
+  const canvas = document.getElementById('img-preview-canvas');
+  if (!wrap || !canvas) return;
 
-document.getElementById('input-archivo-docente')?.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if(!file||file.type!=='application/pdf'){ toast('Solo se aceptan archivos PDF','er'); return; }
-  document.getElementById('up-filename-docente').textContent = file.name;
-  document.getElementById('docente-cost-sub').textContent = 'Leyendo PDF…';
-
+  const img = new Image();
   const reader = new FileReader();
-  reader.onload = async function(){
-    let numPages = 0;
-    try {
-      const arr = new Uint8Array(this.result);
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-      const pdf = await pdfjsLib.getDocument(arr).promise;
-      numPages = pdf.numPages;
-      document.getElementById('docente-pags').textContent = numPages;
-      document.getElementById('pags-info-docente').style.display = 'flex';
-    } catch(e){
-      toast('Error al leer PDF: '+e.message,'er');
-      return;
-    }
+  reader.onload = (e) => {
+    imagenOriginalSrc = e.target.result;
+    img.onload = () => {
+      imagenActual = img;
+      imagenRotation = 0;
+      dibujarImagenEnCanvas(canvas, img, 0);
+      wrap.style.display = 'block';
 
-    try {
-      await actualizarEstadoDocente(numPages);
-    } catch(e){
-      toast('No se pudo consultar uso docente (Firestore): '+e.message,'er');
-    }
+      // 1 imagen = 1 hoja
+      document.getElementById('alumno-pags').textContent = '1';
+      document.getElementById('pags-info').style.display = 'flex';
+      actualizarCostoAlumno(1);
+    };
+    img.src = e.target.result;
   };
-  reader.readAsArrayBuffer(file);
-});
+  reader.readAsDataURL(file);
+}
 
-window.enviarArchivoDocente = async () => {
-  const archivo = document.getElementById('input-archivo-docente').files[0];
-  const paginas = parseInt(document.getElementById('docente-pags').textContent)||0;
-  const usuario = localStorage.getItem('usuario_cbta');
-  if(!archivo){ toast('Seleccione un archivo PDF','er'); return; }
-  if(paginas===0){ toast('El archivo no tiene páginas detectadas','er'); return; }
+function dibujarImagenEnCanvas(canvas, img, rotation) {
+  const ctx = canvas.getContext('2d');
+  const isRotated = (rotation === 90 || rotation === -90 || rotation === 270);
+  const w = isRotated ? img.naturalHeight : img.naturalWidth;
+  const h = isRotated ? img.naturalWidth : img.naturalHeight;
 
-  await actualizarEstadoDocente(paginas);
+  // Max display size (the canvas CSS is 100% width, we set intrinsic size)
+  const maxW = 600;
+  const scale = Math.min(1, maxW / w, maxW / h);
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
 
-  const btn = document.getElementById('btn-enviar-docente');
-  btn.disabled = true;
-  btn.textContent = 'Enviando…';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.drawImage(img, -img.naturalWidth * scale / 2, -img.naturalHeight * scale / 2,
+    img.naturalWidth * scale, img.naturalHeight * scale);
+  ctx.restore();
+}
 
-  try {
-    const res = await registrarDocumentoDocente({
-      usuario,
-      archivo,
-      paginas,
-      tipoImpresion: tipoImpDocente,
-      precioUnitario: PRECIOS[tipoImpDocente],
-      gratuita: docenteResumen.gratuita,
-      weekKey: docenteResumen.weekKey,
-    });
-
-    if(res){
-      ultimoArchivoDocenteURL = res.archivoURL || '';
-      document.getElementById('ov-exito-docente').classList.add('on');
-      resetDocente();
-      await actualizarEstadoDocente(0);
-    } else {
-      toast('Error al registrar. Verifique conexión.','er');
-    }
-  } catch(e) {
-    toast('Error al registrar: '+e.message,'er');
-  }
-
-  btn.disabled = false;
-  btn.innerHTML = '📤 Enviar a impresión';
+window.rotarImagenPreview = (deg) => {
+  if (!imagenActual) return;
+  imagenRotation = (imagenRotation + deg + 360) % 360;
+  const canvas = document.getElementById('img-preview-canvas');
+  dibujarImagenEnCanvas(canvas, imagenActual, imagenRotation);
 };
 
-window.abrirImpresionDocente = () => {
-  if(!ultimoArchivoDocenteURL){
-    toast('No hay archivo reciente para abrir','wa');
-    return;
-  }
-
-  const vista = window.open(ultimoArchivoDocenteURL, '_blank', 'noopener,noreferrer');
-  if(!vista){
-    toast('El navegador bloqueó la ventana. Habilite pop-ups e intente de nuevo','wa');
-    return;
-  }
-
-  toast('Archivo abierto. Use Imprimir desde su navegador o dispositivo','ok');
+window.aplicarOrientacionImagen = () => {
+  if (!imagenActual) return;
+  const sel = document.getElementById('img-orientacion')?.value;
+  if (sel === 'portrait') imagenRotation = 0;
+  else if (sel === 'landscape') imagenRotation = 90;
+  const canvas = document.getElementById('img-preview-canvas');
+  dibujarImagenEnCanvas(canvas, imagenActual, imagenRotation);
 };
 
-window.resetDocente = () => {
-  document.getElementById('input-archivo-docente').value='';
-  document.getElementById('up-filename-docente').textContent='Ningún archivo seleccionado';
-  document.getElementById('docente-pags').textContent='0';
-  document.getElementById('docente-tipo-label').textContent = tipoImpDocente==='laser_bn'?'B&N':'Color';
-  document.getElementById('pags-info-docente').style.display='none';
-  const total = document.getElementById('docente-total');
-  if(total) total.textContent='Sin costo';
-  const sub = document.getElementById('docente-cost-sub');
-  if(sub) sub.textContent='El costo se registrará solo para administración.';
-};
+async function imagenAPdfBlob(img, rotation) {
+  // Tamaño de página estándar (puntos, 72 dpi)
+  const isRotated = (rotation === 90 || rotation === -90 || rotation === 270);
+  const imgW = isRotated ? img.naturalHeight : img.naturalWidth;
+  const imgH = isRotated ? img.naturalWidth : img.naturalHeight;
 
-function renderUsoDocentes(){
-  const tbody = document.getElementById('t-docentes');
-  const kpi = document.getElementById('kpi-docentes');
-  if(!tbody || !kpi) return;
+  // Determinar si cabe mejor en carta o oficio
+  const CARTA_W = 612, CARTA_H = 792;
+  const OFICIO_W = 612, OFICIO_H = 936;
+  const margen = 36; // 0.5 pulgada
+  const usableW = CARTA_W - 2 * margen;
+  const usableH = CARTA_H - 2 * margen;
 
-  const mes = new Date().toISOString().slice(0,7);
-  const delMes = usoDocentesActual.filter(item => item.fecha?.toDate?.().toISOString().slice(0,7) === mes);
-  const costoMes = delMes.reduce((acc, item) => acc + (item.costoGenerado || 0), 0);
-  const excedenteMes = delMes.reduce((acc, item) => acc + (item.costoExcedente || 0), 0);
-  const docentesActivos = new Set(delMes.map(item => item.usuario).filter(Boolean)).size;
+  const scaleImg = Math.min(usableW / imgW, usableH / imgH, 1);
+  const drawW = imgW * scaleImg;
+  const drawH = imgH * scaleImg;
 
-  kpi.innerHTML = [
-    {ic:'👩‍🏫', v:docentesActivos, l:'Docentes activos mes', c:'t'},
-    {ic:'📄', v:delMes.length, l:'Impresiones mes', c:'i'},
-    {ic:'🧾', v:$m(costoMes), l:'Costo generado mes', c:'b'},
-    {ic:'💰', v:$m(excedenteMes), l:'Costo excedente mes', c:excedenteMes>0?'r':'gr'},
-  ].map(k=>`<div class="kcard ${k.c}"><span class="kic">${k.ic}</span><div class="kval">${k.v}</div><div class="klbl">${k.l}</div></div>`).join('');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: drawW > drawH ? 'l' : 'p', unit: 'pt', format: 'letter' });
 
-  tbody.innerHTML = usoDocentesActual.length
-    ? usoDocentesActual.map(item => {
-        const fecha = item.fecha?.toDate ? item.fecha.toDate().toLocaleString('es-MX') : '—';
-        const label = LABELS[item.tipoImpresion] || 'B&N';
-        return `<tr>
-          <td>${fecha}</td>
-          <td><strong>${item.usuario||'—'}</strong></td>
-          <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.archivo||'—'}</td>
-          <td>${item.paginas||0}</td>
-          <td>${label}</td>
-          <td><span class="badge ${item.gratuita ? 'bsrv' : 'bpend'}">${item.gratuita ? 'Gratuita' : 'Con costo'}</span></td>
-          <td><strong>${$m(item.costoGenerado||0)}</strong></td>
-          <td>${$m(item.costoExcedente||0)}</td>
-        </tr>`;
-      }).join('')
-    : '<tr><td colspan="8" class="empty">Sin registros docentes aún</td></tr>';
+  // Centrar imagen
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const x = (pageW - drawW) / 2;
+  const y = (pageH - drawH) / 2;
+
+  // Convertir la imagen rotada a data URL del canvas
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = imgW;
+  tempCanvas.height = imgH;
+  const tCtx = tempCanvas.getContext('2d');
+  tCtx.save();
+  tCtx.translate(imgW / 2, imgH / 2);
+  tCtx.rotate((rotation * Math.PI) / 180);
+  tCtx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+  tCtx.restore();
+
+  const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.92);
+  doc.addImage(dataUrl, 'JPEG', x, y, drawW, drawH);
+
+  return doc.output('blob');
+}
+
+function ocultarPreviewImagen() {
+  const wrap = document.getElementById('img-preview-wrap');
+  if (wrap) wrap.style.display = 'none';
+  imagenActual = null;
+  imagenRotation = 0;
+  imagenOriginalSrc = null;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1381,14 +1321,157 @@ document.querySelectorAll('.ov').forEach(o=>{
 window.agregarAlCarritoImpresion = window.addImpToCart;
 
 // ═══════════════════════════════════════════════════════════════════
+// IMPRESIÓN DE IMÁGENES — ADMIN (clientes presenciales con USB/foto)
+// ═══════════════════════════════════════════════════════════════════
+
+let adminImagenActual = null;
+let adminImagenRotation = 0;
+let adminManualTab = 'manual'; // 'manual' o 'imagen'
+
+window.imprimirManualTab = (tab) => {
+  adminManualTab = tab;
+  document.getElementById('im-tab-manual-content').style.display = tab === 'manual' ? 'block' : 'none';
+  document.getElementById('im-tab-imagen-content').style.display = tab === 'imagen' ? 'block' : 'none';
+  document.getElementById('im-tab-manual').className = tab === 'manual' ? 'btn bp bsm' : 'btn bs bsm';
+  document.getElementById('im-tab-imagen').className = tab === 'imagen' ? 'btn bp bsm' : 'btn bs bsm';
+
+  // Cambiar el botón de acción
+  const btnAgregar = document.getElementById('btn-agregar-imp-manual');
+  if (tab === 'imagen') {
+    btnAgregar.setAttribute('onclick', 'agregarImpresionImagenAdmin()');
+    btnAgregar.innerHTML = '🖼️ Procesar imagen y agregar';
+  } else {
+    btnAgregar.setAttribute('onclick', 'agregarImpresionManual()');
+    btnAgregar.innerHTML = '➕ Agregar al carrito';
+  }
+};
+
+window.adminImagenSeleccionada = (input) => {
+  const file = input.files[0];
+  if (!file || !file.type.startsWith('image/')) {
+    if (file) toast('Solo se aceptan imágenes', 'er');
+    return;
+  }
+
+  document.getElementById('admin-img-filename').textContent = file.name;
+
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    img.onload = () => {
+      adminImagenActual = img;
+      adminImagenRotation = 0;
+      const canvas = document.getElementById('admin-img-preview-canvas');
+      dibujarImagenEnCanvas(canvas, img, 0);
+      document.getElementById('admin-img-preview-wrap').style.display = 'block';
+      document.getElementById('admin-img-orientacion').value = 'auto';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.adminRotarImagen = (deg) => {
+  if (!adminImagenActual) return;
+  adminImagenRotation = (adminImagenRotation + deg + 360) % 360;
+  const canvas = document.getElementById('admin-img-preview-canvas');
+  dibujarImagenEnCanvas(canvas, adminImagenActual, adminImagenRotation);
+};
+
+window.adminAplicarOrientacion = () => {
+  if (!adminImagenActual) return;
+  const sel = document.getElementById('admin-img-orientacion')?.value;
+  if (sel === 'portrait') adminImagenRotation = 0;
+  else if (sel === 'landscape') adminImagenRotation = 90;
+  const canvas = document.getElementById('admin-img-preview-canvas');
+  dibujarImagenEnCanvas(canvas, adminImagenActual, adminImagenRotation);
+};
+
+window.adminActualizarPrecioImagen = () => {
+  const tipo = document.getElementById('im-tipo-img')?.value || 'laser_bn';
+  const precio = PRECIOS[tipo] || 0.5;
+  const el = document.getElementById('im-total-img');
+  if (el) el.textContent = `$${precio.toFixed(2)}`;
+};
+
+window.agregarImpresionImagenAdmin = async () => {
+  if (!adminImagenActual) {
+    toast('Seleccione una imagen primero', 'er');
+    return;
+  }
+
+  const btnAgregar = document.getElementById('btn-agregar-imp-manual');
+  const tipo = document.getElementById('im-tipo-img')?.value || 'laser_bn';
+  const usuario = document.getElementById('im-usuario-img')?.value.trim() || 'Presencial';
+  const label = LABELS[tipo] || 'B&N';
+  const precio = PRECIOS[tipo] || 0.5;
+
+  btnAgregar.disabled = true;
+  btnAgregar.innerHTML = '⏳ Convirtiendo a PDF…';
+
+  try {
+    // Convertir imagen a PDF
+    const pdfBlob = await imagenAPdfBlob(adminImagenActual, adminImagenRotation);
+
+    // Subir a Firebase Storage como impresión
+    const nombreArchivo = `img_${Date.now()}_${usuario.replace(/\s+/g, '_')}.pdf`;
+    const pdfFile = new File([pdfBlob], nombreArchivo, { type: 'application/pdf' });
+
+    const ok = await enviarDocumentoNube({
+      usuario,
+      archivo: pdfFile,
+      paginas: 1,
+      tipoImpresion: tipo,
+    });
+
+    if (ok) {
+      // Agregar al carrito automáticamente
+      carrito.push({
+        id: 'img-' + Date.now(),
+        nombre: `🖼️ Imagen (${label})`,
+        precio,
+        tipo: 'impresion',
+        usuarioAlumno: usuario,
+        numPags: 1,
+        labelServicio: label,
+        esManual: true,
+      });
+      renderCart();
+      closeModal('ov-imp-manual');
+      go('venta');
+      toast(`✓ Imagen procesada — $${precio.toFixed(2)}`, 'ok');
+    } else {
+      toast('Error al subir imagen a Firebase', 'er');
+    }
+  } catch (e) {
+    toast('Error al procesar imagen: ' + e.message, 'er');
+    console.error(e);
+  }
+
+  btnAgregar.disabled = false;
+  btnAgregar.innerHTML = adminManualTab === 'imagen' ? '🖼️ Procesar imagen y agregar' : '➕ Agregar al carrito';
+};
+
+// ═══════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════
 window.abrirImpresionManual = () => {
   document.getElementById('ov-imp-manual').classList.add('on');
+  // Reset tabs a manual
+  imprimirManualTab('manual');
   document.getElementById('im-paginas').value='';
   document.getElementById('im-usuario').value='';
   document.getElementById('im-tipo').value='laser_bn';
   calcularManual();
+  // Limpiar estado de imagen
+  adminImagenActual = null;
+  adminImagenRotation = 0;
+  const imgWrap = document.getElementById('admin-img-preview-wrap');
+  if (imgWrap) imgWrap.style.display = 'none';
+  const imgInput = document.getElementById('admin-input-imagen');
+  if (imgInput) imgInput.value = '';
+  const imgFilename = document.getElementById('admin-img-filename');
+  if (imgFilename) imgFilename.textContent = 'Ninguna imagen seleccionada';
 };
 
 window.calcularManual = () => {

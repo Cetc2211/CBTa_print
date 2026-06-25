@@ -1,20 +1,13 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Alumnos / usuarios generales
+    // Alumnos / usuarios generales (PDF e imagenes convertidas a PDF)
     match /impresiones/{allPaths=**} {
       allow read: if true;
       allow write: if request.resource != null
         && request.resource.size < 20 * 1024 * 1024
-        && request.resource.contentType == 'application/pdf';
-    }
-
-    // Docentes (separado para no mezclar con impresiones)
-    match /Docentes/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.resource != null
-        && request.resource.size < 20 * 1024 * 1024
-        && request.resource.contentType == 'application/pdf';
+        && (request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('image/.*'));
     }
 
     // Fotos del catalogo

@@ -29,11 +29,10 @@ const subirDocumentoACola = async (datos, extras = {}) => {
             tipoImpresion: datos.tipoImpresion, // 'laser_bn' o 'smart_tank'
             fecha: serverTimestamp(),
             estatus: 'pendiente',
-            carpetaStorage,
             ...extras,
         });
 
-        return { colaRef, archivoURL: url, carpetaStorage };
+        return { colaRef, archivoURL: url };
     } catch(e) { 
         console.error("Error en subida:", e);
         return null; 

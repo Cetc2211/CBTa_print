@@ -2,8 +2,8 @@ import {
     collection, addDoc, serverTimestamp, onSnapshot, deleteDoc, 
     doc, updateDoc, increment, getDoc, query, orderBy, limit, where, getDocs 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-import { db, storage } from "./firebase-config.js";
+import { ref, uploadBytes, getDownloadURL, getStorage } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+import { db, storage, app } from "./firebase-config.js";
 
 // Escuchar Cola de Impresión
 export const escucharColaImpresion = (callback) => {
@@ -12,31 +12,45 @@ export const escucharColaImpresion = (callback) => {
 };
 
 const subirDocumentoACola = async (datos, extras = {}) => {
+    if (!datos.archivo) throw new Error('No se proporcionó archivo');
+    if (!datos.usuario) throw new Error('No se proporcionó nombre de usuario');
+
+    const extension = datos.archivo.name.split('.').pop();
+    const nombreFinal = `${Date.now()}_${datos.usuario.replace(/\s+/g, '_')}.${extension}`;
+    const storagePath = `impresiones/${nombreFinal}`;
+
+    // Intentar subida con el bucket principal
+    let url;
     try {
-        if (!datos.archivo) return null;
-        const extension = datos.archivo.name.split('.').pop();
-        const nombreFinal = `${Date.now()}_${datos.usuario.replace(/\s+/g, '_')}.${extension}`;
-        const storageRef = ref(storage, `impresiones/${nombreFinal}`);
-        
+        const storageRef = ref(storage, storagePath);
         const snapshot = await uploadBytes(storageRef, datos.archivo);
-        const url = await getDownloadURL(snapshot.ref);
-
-        const colaRef = await addDoc(collection(db, "cola_impresion"), {
-            usuario: datos.usuario,
-            archivo: datos.archivo.name,
-            archivoURL: url,
-            paginas: Number(datos.paginas),
-            tipoImpresion: datos.tipoImpresion, // 'laser_bn' o 'smart_tank'
-            fecha: serverTimestamp(),
-            estatus: 'pendiente',
-            ...extras,
-        });
-
-        return { colaRef, archivoURL: url };
-    } catch(e) { 
-        console.error("Error en subida:", e);
-        return null; 
+        url = await getDownloadURL(snapshot.ref);
+    } catch(storageErr) {
+        // Fallback al bucket legacy appspot (compatibilidad)
+        console.warn('[Storage] Bucket principal falló, intentando fallback:', storageErr.message);
+        try {
+            const legacyStorage = getStorage(app, 'gs://academic-tracker-qeoxi.appspot.com');
+            const legacyRef = ref(legacyStorage, storagePath);
+            const snapshot = await uploadBytes(legacyRef, datos.archivo);
+            url = await getDownloadURL(snapshot.ref);
+        } catch(fallbackErr) {
+            throw new Error('Storage: ' + fallbackErr.message);
+        }
     }
+
+    // Registrar en Firestore
+    const colaRef = await addDoc(collection(db, 'cola_impresion'), {
+        usuario: datos.usuario,
+        archivo: datos.archivo.name,
+        archivoURL: url,
+        paginas: Number(datos.paginas),
+        tipoImpresion: datos.tipoImpresion,
+        fecha: serverTimestamp(),
+        estatus: 'pendiente',
+        ...extras,
+    });
+
+    return { colaRef, archivoURL: url };
 };
 
 // Enviar Archivo (Alumno)

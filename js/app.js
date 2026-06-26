@@ -1149,11 +1149,15 @@ window.enviarArchivo = async () => {
     }
   }
 
-  const ok = await enviarDocumentoNube({ usuario, archivo: archivoFinal, paginas, tipoImpresion:tipoImpAlumno });
-  btn.disabled=false; btn.innerHTML='📤 Enviar al Profr. Cecilio';
-
-  if(ok){ document.getElementById('ov-exito').classList.add('on'); }
-  else   { toast('Error al enviar. Verifique conexión.','er'); }
+  try {
+    const ok = await enviarDocumentoNube({ usuario, archivo: archivoFinal, paginas, tipoImpresion:tipoImpAlumno });
+    btn.disabled=false; btn.innerHTML='📤 Enviar al Profr. Cecilio';
+    if(ok){ document.getElementById('ov-exito').classList.add('on'); }
+  } catch(err) {
+    btn.disabled=false; btn.innerHTML='📤 Enviar al Profr. Cecilio';
+    console.error('[enviarArchivo] Error detallado:', err);
+    toast('Error: ' + err.message, 'er');
+  }
 };
 
 window.resetAlumno = () => {

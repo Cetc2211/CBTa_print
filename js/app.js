@@ -29,6 +29,7 @@ let chSem = null, chTipo = null;
 let colaActual    = [];    // snapshot en tiempo real de Firebase
 let inventario    = [];    // snapshot en tiempo real de Firebase
 let adminIniciado = false;
+let seccionAdminActiva = 'dashboard';   // sección visible del panel admin
 
 // ─── LOCAL DB (egresos y movimientos de stock — localStorage) ──────
 const LS = {
@@ -206,6 +207,8 @@ function iniciarAdmin(){
     actualizarColaBadge();
     renderColaImpresion();
     renderColaVenta();
+    // Si el admin está viendo la cola, refrescarla en vivo
+    if (seccionAdminActiva === 'cola') renderColaFull();
   });
 
   // Inventario — tiempo real desde Firestore
@@ -256,6 +259,7 @@ window.go = (s) => {
   });
   const bnMatch = document.getElementById('bn-'+s);
   if(bnMatch) bnMatch.classList.add('on');
+  seccionAdminActiva = s;
   if(s==='dashboard') renderDash();
   if(s==='productos') renderProds();
   if(s==='historial') renderHist();
@@ -279,6 +283,14 @@ window.eliminarDeCola = async (id, nombre) => {
   }
 };
 
+// Convierte el base64 de un documento de la cola a Blob PDF
+function docColaABlob(d){
+  const bin = atob(d.archivoBase64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return new Blob([bytes], { type: d.archivoTipo || 'application/pdf' });
+}
+
 // Abre el PDF de una impresión de la cola. Los documentos nuevos traen el
 // archivo en base64 (campo archivoBase64); los antiguos tenían URL de Storage.
 window.abrirPDFCola = (id) => {
@@ -290,21 +302,76 @@ window.abrirPDFCola = (id) => {
   }
   if(!d.archivoBase64){ toast('Este documento no tiene archivo adjunto','wa'); return; }
   try {
-    const bin = atob(d.archivoBase64);
-    const bytes = new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-    const blob = new Blob([bytes], { type: d.archivoTipo || 'application/pdf' });
-    const url  = URL.createObjectURL(blob);
-    const w    = window.open(url,'_blank');
+    const url = URL.createObjectURL(docColaABlob(d));
+    const w   = window.open(url,'_blank');
     if(!w){   // popup bloqueado → descargar directamente
-      const a = document.createElement('a');
-      a.href = url; a.download = d.archivo || 'documento.pdf'; a.click();
-      toast('Descarga iniciada','ok');
+      descargarPDFCola(id);
     }
-    setTimeout(()=>URL.revokeObjectURL(url), 120000);
+    setTimeout(()=>URL.revokeObjectURL(url), 600000);   // 10 min por si imprime desde el visor
   } catch(e){
     console.error('[abrirPDFCola]', e);
     toast('Error al abrir el PDF: '+e.message,'er');
+  }
+};
+
+// Descarga el PDF de la cola como archivo real. Es la vía garantizada:
+// un archivo en disco siempre imprime bien desde cualquier programa.
+window.descargarPDFCola = (id) => {
+  const d = colaActual.find(x=>x.id===id);
+  if(!d){ toast('Documento no encontrado','er'); return; }
+  if(!d.archivoBase64){
+    if(d.archivoURL){ window.open(d.archivoURL,'_blank'); }
+    else { toast('Este documento no tiene archivo adjunto','wa'); }
+    return;
+  }
+  try {
+    const url = URL.createObjectURL(docColaABlob(d));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = d.archivo || 'documento.pdf';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 120000);
+    toast('⬇️ Descargando PDF…','ok');
+  } catch(e){
+    console.error('[descargarPDFCola]', e);
+    toast('Error al descargar: '+e.message,'er');
+  }
+};
+
+// Imprime el PDF de la cola con un iframe oculto. NO se usa el botón de
+// imprimir del visor de pestañas porque Chrome/Edge fallan silenciosamente
+// al imprimir PDFs abiertos por blob: URL (el trabajo nunca llega a la
+// impresora). Con el iframe el trabajo entra normal a la cola del sistema.
+window.imprimirPDFCola = (id) => {
+  const d = colaActual.find(x=>x.id===id);
+  if(!d){ toast('Documento no encontrado','er'); return; }
+  if(!d.archivoBase64){
+    toast('Documento antiguo: ábrelo con 👁️, descárgalo e imprime desde tu programa PDF','wa');
+    return;
+  }
+  toast('🖨️ Preparando impresión…','');
+  try {
+    const url = URL.createObjectURL(docColaABlob(d));
+    const iframe = document.createElement('iframe');
+    // 1px y casi invisible: con display:none algunos navegadores se saltan la impresión
+    iframe.setAttribute('aria-hidden','true');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0.01;border:0;';
+    iframe.src = url;
+    iframe.onload = () => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch(ePrint){
+        console.warn('[imprimirPDFCola] print() no disponible, descargando respaldo', ePrint);
+        descargarPDFCola(id);
+        toast('La impresión directa no está disponible en este dispositivo: se descargó el PDF para imprimirlo desde tu programa PDF.','wa');
+      }
+    };
+    document.body.appendChild(iframe);
+    setTimeout(()=>{ iframe.remove(); URL.revokeObjectURL(url); }, 120000);
+  } catch(e){
+    console.error('[imprimirPDFCola]', e);
+    toast('Error al preparar la impresión: '+e.message,'er');
   }
 };
 
@@ -462,7 +529,9 @@ function renderColaFull(){
         <div style="margin-top:6px">${badgeEstado}</div>
       </div>
       <div class="imp-actions" style="flex-direction:column;gap:6px">
-        ${(doc.archivoBase64||doc.archivoURL)?`<button class="btn bs bsm wf" style="justify-content:center" onclick="abrirPDFCola('${doc.id}')">👁️ Ver PDF</button>`:''}
+        ${(doc.archivoBase64||doc.archivoURL)?`<button class="btn bi bsm wf" style="justify-content:center" onclick="imprimirPDFCola('${doc.id}')">🖨️ Imprimir</button>
+        <button class="btn bs bsm wf" style="justify-content:center" onclick="abrirPDFCola('${doc.id}')">👁️ Ver</button>
+        ${doc.archivoBase64?`<button class="btn bs bsm wf" style="justify-content:center" onclick="descargarPDFCola('${doc.id}')">⬇️ Descargar</button>`:''}`:''}
         ${accionPrincipal}
          <button class="btn br bsm wf" style="justify-content:center"
           onclick="eliminarDeCola('${doc.id}','${doc.archivo||'archivo'}')">

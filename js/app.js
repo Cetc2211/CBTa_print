@@ -5,6 +5,7 @@
 import {
   escucharColaImpresion,
   enviarDocumentoNube,
+  MAX_ARCHIVO_BYTES,
   escucharInventarioDB,
   procesarCobroVenta,
   guardarNuevoProducto,
@@ -278,6 +279,35 @@ window.eliminarDeCola = async (id, nombre) => {
   }
 };
 
+// Abre el PDF de una impresión de la cola. Los documentos nuevos traen el
+// archivo en base64 (campo archivoBase64); los antiguos tenían URL de Storage.
+window.abrirPDFCola = (id) => {
+  const d = colaActual.find(x=>x.id===id);
+  if(!d){ toast('Documento no encontrado','er'); return; }
+  if(!d.archivoBase64 && d.archivoURL){
+    window.open(d.archivoURL,'_blank');   // compatibilidad con documentos antiguos
+    return;
+  }
+  if(!d.archivoBase64){ toast('Este documento no tiene archivo adjunto','wa'); return; }
+  try {
+    const bin = atob(d.archivoBase64);
+    const bytes = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    const blob = new Blob([bytes], { type: d.archivoTipo || 'application/pdf' });
+    const url  = URL.createObjectURL(blob);
+    const w    = window.open(url,'_blank');
+    if(!w){   // popup bloqueado → descargar directamente
+      const a = document.createElement('a');
+      a.href = url; a.download = d.archivo || 'documento.pdf'; a.click();
+      toast('Descarga iniciada','ok');
+    }
+    setTimeout(()=>URL.revokeObjectURL(url), 120000);
+  } catch(e){
+    console.error('[abrirPDFCola]', e);
+    toast('Error al abrir el PDF: '+e.message,'er');
+  }
+};
+
 // ═══════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
@@ -398,7 +428,7 @@ function renderColaVenta(){
         <div class="imp-meta">${doc.usuario} · ${label} · ${doc.paginas} pág${doc.paginas!==1?'s':''}</div>
       </div>
       <div class="imp-actions">
-        ${doc.archivoURL?`<a href="${doc.archivoURL}" target="_blank" class="btn bs bsm bic" title="Ver PDF">👁️</a>`:''}
+        ${(doc.archivoBase64||doc.archivoURL)?`<button class="btn bs bsm bic" title="Ver PDF" onclick="abrirPDFCola('${doc.id}')">👁️</button>`:''}
         <button class="btn bi bsm" onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas},'${label}')">
           +$${total}
         </button>
@@ -432,7 +462,7 @@ function renderColaFull(){
         <div style="margin-top:6px">${badgeEstado}</div>
       </div>
       <div class="imp-actions" style="flex-direction:column;gap:6px">
-        ${doc.archivoURL?`<a href="${doc.archivoURL}" target="_blank" class="btn bs bsm wf" style="justify-content:center">👁️ Ver PDF</a>`:''}
+        ${(doc.archivoBase64||doc.archivoURL)?`<button class="btn bs bsm wf" style="justify-content:center" onclick="abrirPDFCola('${doc.id}')">👁️ Ver PDF</button>`:''}
         ${accionPrincipal}
          <button class="btn br bsm wf" style="justify-content:center"
           onclick="eliminarDeCola('${doc.id}','${doc.archivo||'archivo'}')">
@@ -1151,8 +1181,16 @@ window.enviarArchivo = async () => {
     }
   }
 
+  // Los archivos viven dentro de Firestore (sin Storage): validar tamaño
+  if(archivoFinal.size > MAX_ARCHIVO_BYTES){
+    const mb = (archivoFinal.size/1048576).toFixed(2);
+    toast(`El PDF pesa ${mb} MB (límite 0.7 MB). Truco: manda foto del documento, la app la comprime sola.`, 'er');
+    btn.disabled=false; btn.innerHTML='📤 Enviar al Profr. Cecilio';
+    return;
+  }
+
   try {
-    btn.textContent = '☁️ Subiendo a la nube…';
+    btn.textContent = '☁️ Guardando en la nube…';
     const ok = await enviarDocumentoNube({ usuario, archivo: archivoFinal, paginas, tipoImpresion:tipoImpAlumno });
     btn.disabled=false; btn.innerHTML='📤 Enviar al Profr. Cecilio';
     if(ok){ document.getElementById('ov-exito').classList.add('on'); }
@@ -1247,15 +1285,13 @@ window.aplicarOrientacionImagen = () => {
   dibujarImagenEnCanvas(canvas, imagenActual, imagenRotation);
 };
 
-async function imagenAPdfBlob(img, rotation) {
+async function renderImagenAPdf(img, rotation, maxDim, calidad) {
   // Tamaño de página estándar (puntos, 72 dpi)
   const isRotated = (rotation === 90 || rotation === -90 || rotation === 270);
   const imgW = isRotated ? img.naturalHeight : img.naturalWidth;
   const imgH = isRotated ? img.naturalWidth : img.naturalHeight;
 
-  // Determinar si cabe mejor en carta o oficio
   const CARTA_W = 612, CARTA_H = 792;
-  const OFICIO_W = 612, OFICIO_H = 936;
   const margen = 36; // 0.5 pulgada
   const usableW = CARTA_W - 2 * margen;
   const usableH = CARTA_H - 2 * margen;
@@ -1273,21 +1309,42 @@ async function imagenAPdfBlob(img, rotation) {
   const x = (pageW - drawW) / 2;
   const y = (pageH - drawH) / 2;
 
-  // Convertir la imagen rotada a data URL del canvas
+  // Canvas reducido: el PDF se forma con la imagen ya comprimida para que
+  // el documento quepa en Firestore (límite 1 MB)
+  const factor = Math.min(1, maxDim / Math.max(imgW, imgH));
+  const cw = Math.max(1, Math.round(imgW * factor));
+  const ch = Math.max(1, Math.round(imgH * factor));
   const tempCanvas = document.createElement('canvas');
-  tempCanvas.width = imgW;
-  tempCanvas.height = imgH;
+  tempCanvas.width = cw;
+  tempCanvas.height = ch;
   const tCtx = tempCanvas.getContext('2d');
   tCtx.save();
-  tCtx.translate(imgW / 2, imgH / 2);
+  tCtx.translate(cw / 2, ch / 2);
   tCtx.rotate((rotation * Math.PI) / 180);
-  tCtx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+  tCtx.drawImage(img,
+    -img.naturalWidth * factor / 2, -img.naturalHeight * factor / 2,
+    img.naturalWidth * factor, img.naturalHeight * factor);
   tCtx.restore();
 
-  const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.92);
+  const dataUrl = tempCanvas.toDataURL('image/jpeg', calidad);
   doc.addImage(dataUrl, 'JPEG', x, y, drawW, drawH);
 
   return doc.output('blob');
+}
+
+async function imagenAPdfBlob(img, rotation) {
+  // Escalera de compresión: intenta la mejor calidad y baja hasta caber
+  const intentos = [
+    { maxDim: 1600, calidad: 0.78 },
+    { maxDim: 1200, calidad: 0.62 },
+    { maxDim: 900,  calidad: 0.50 },
+  ];
+  let ultimo = null;
+  for (const it of intentos) {
+    ultimo = await renderImagenAPdf(img, rotation, it.maxDim, it.calidad);
+    if (ultimo.size <= MAX_ARCHIVO_BYTES) return ultimo;
+  }
+  return ultimo; // el tamaño se valida al enviar
 }
 
 function ocultarPreviewImagen() {

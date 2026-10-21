@@ -1,43 +1,27 @@
-import { 
-    collection, addDoc, serverTimestamp, onSnapshot, deleteDoc, 
-    doc, updateDoc, increment, getDoc, query, orderBy, limit, where, getDocs 
+import {
+    collection, addDoc, serverTimestamp, onSnapshot, deleteDoc,
+    doc, updateDoc, increment, getDoc, query, orderBy, limit, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { ref, uploadBytes, getDownloadURL, getStorage } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-import { db, storage, app } from "./firebase-config.js";
+import { db } from "./firebase-config.js";
 
-// ─── Protecciones de subida a Storage ─────────────────────────────
-// Evita que la UI se quede colgada cuando el bucket no responde
-// (cuota agotada, bucket inexistente o CORS sin configurar).
-const TIMEOUT_BUCKET_PRINCIPAL = 60000; // 60 s para subidas reales
-const TIMEOUT_BUCKET_FALLBACK  = 20000; // 20 s (el fallback es un último recurso)
+// ─── Almacenamiento de impresiones (SIN Firebase Storage) ─────────
+// Desde el 1 de octubre de 2025 Google exige el plan Blaze (pago) para
+// usar CUALQUIER bucket de Cloud Storage, incluso los existentes. Para
+// no depender de eso, los archivos de impresión se guardan COMPRIMIDOS
+// en base64 dentro del propio documento de Firestore (plan Spark, gratis).
+//
+// Límite duro de un documento Firestore: 1,048,576 bytes. El base64
+// crece 4/3, así que el tope seguro de PDF real es ~700 KB. Las fotos
+// se comprimen en app.js antes de convertirse a PDF.
+export const MAX_ARCHIVO_BYTES = 700000;
 
-function conTimeout(promesa, ms, etiqueta) {
-  let timer;
-  const vencido = new Promise((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error(
-        `${etiqueta}: la subida superó ${Math.round(ms/1000)} s sin respuesta. ` +
-        `Posible falta de cuota en el bucket o bucket no disponible.`
-      )),
-      ms
-    );
-  });
-  return Promise.race([promesa, vencido]).finally(() => clearTimeout(timer));
-}
-
-const ERRORES_STORAGE = {
-  'storage/quota-exceeded':
-    'La cuota de almacenamiento del proyecto Firebase está agotada. No se pueden subir archivos hasta liberar espacio o ampliar el plan (ver consola de Firebase → Storage).',
-  'storage/unauthorized':
-    'No hay permiso para subir archivos al almacenamiento (revisa storage.rules / autenticación).',
-  'storage/canceled': 'La subida fue cancelada.',
-  'storage/retry-limit-exceeded':
-    'La red no respondió y se agotaron los reintentos de subida.',
-};
-
-function mensajeStorage(e) {
-  return ERRORES_STORAGE[e?.code] || e?.message || 'Error desconocido de almacenamiento';
-}
+// Convierte un Blob/File a base64 puro (sin el prefijo data:)
+const blobABase64 = (blob) => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = () => reject(new Error('No se pudo leer el archivo'));
+    r.readAsDataURL(blob);
+});
 
 // Escuchar Cola de Impresión
 export const escucharColaImpresion = (callback) => {
@@ -45,53 +29,29 @@ export const escucharColaImpresion = (callback) => {
     return onSnapshot(q, callback);
 };
 
-const subirDocumentoACola = async (datos, extras = {}) => {
+const guardarDocumentoEnCola = async (datos, extras = {}) => {
     if (!datos.archivo) throw new Error('No se proporcionó archivo');
     if (!datos.usuario) throw new Error('No se proporcionó nombre de usuario');
 
-    const extension = datos.archivo.name.split('.').pop();
-    const nombreFinal = `${Date.now()}_${datos.usuario.replace(/\s+/g, '_')}.${extension}`;
-    const storagePath = `impresiones/${nombreFinal}`;
-
-    // Intentar subida con el bucket principal
-    let url;
-    try {
-        const storageRef = ref(storage, storagePath);
-        const snapshot = await conTimeout(
-            uploadBytes(storageRef, datos.archivo),
-            TIMEOUT_BUCKET_PRINCIPAL,
-            'Storage (bucket principal)'
+    if (datos.archivo.size > MAX_ARCHIVO_BYTES) {
+        const mb = (datos.archivo.size / 1048576).toFixed(2);
+        throw new Error(
+            `El archivo pesa ${mb} MB y el límite es ${(MAX_ARCHIVO_BYTES / 1048576).toFixed(1)} MB. ` +
+            `Consejo: toma foto al documento y envíala como imagen (la app la comprime automáticamente).`
         );
-        url = await getDownloadURL(snapshot.ref);
-    } catch(storageErr) {
-        // Cuota agotada: el fallback apunta al mismo proyecto, no tiene sentido insistir.
-        // Se informa de inmediato con un mensaje accionable.
-        if (storageErr?.code === 'storage/quota-exceeded') {
-            console.error('[Storage] Cuota agotada en bucket principal');
-            throw new Error(ERRORES_STORAGE['storage/quota-exceeded']);
-        }
-        // Fallback al bucket legacy appspot (compatibilidad), con tope de tiempo
-        console.warn('[Storage] Bucket principal falló, intentando fallback:', storageErr.code || storageErr.message);
-        try {
-            const legacyStorage = getStorage(app, 'gs://academic-tracker-qeoxi.appspot.com');
-            const legacyRef = ref(legacyStorage, storagePath);
-            const snapshot = await conTimeout(
-                uploadBytes(legacyRef, datos.archivo),
-                TIMEOUT_BUCKET_FALLBACK,
-                'Storage (bucket de respaldo)'
-            );
-            url = await getDownloadURL(snapshot.ref);
-        } catch(fallbackErr) {
-            console.error('[Storage] Fallback también falló:', fallbackErr.code || fallbackErr.message);
-            throw new Error('No se pudo subir el archivo. ' + mensajeStorage(fallbackErr));
-        }
     }
 
-    // Registrar en Firestore
+    const base64 = await blobABase64(datos.archivo);
+
+    // Registra en Firestore. El campo archivoURL se deja vacío por
+    // compatibilidad con las reglas de seguridad y los documentos antiguos.
     const colaRef = await addDoc(collection(db, 'cola_impresion'), {
         usuario: datos.usuario,
         archivo: datos.archivo.name,
-        archivoURL: url,
+        archivoURL: '',
+        archivoBase64: base64,
+        archivoTipo: 'application/pdf',
+        archivoBytes: datos.archivo.size,
         paginas: Number(datos.paginas),
         tipoImpresion: datos.tipoImpresion,
         fecha: serverTimestamp(),
@@ -99,29 +59,29 @@ const subirDocumentoACola = async (datos, extras = {}) => {
         ...extras,
     });
 
-    return { colaRef, archivoURL: url };
+    return { colaRef, archivoURL: '' };
 };
 
 // Enviar Archivo (Alumno)
-export const enviarDocumentoNube = async (datos) => subirDocumentoACola(datos);
+export const enviarDocumentoNube = async (datos) => guardarDocumentoEnCola(datos);
 
 // Inventario
 export const escucharInventarioDB = (callback) => onSnapshot(collection(db, "inventario"), callback);
 
 export const guardarNuevoProducto = async (p) => {
-    return await addDoc(collection(db, "inventario"), { 
-        ...p, 
-        totalDia: 0, 
-        ventasHistoricas: 0, 
-        gastoAcumulado: (Number(p.stock) * Number(p.costo)) 
+    return await addDoc(collection(db, "inventario"), {
+        ...p,
+        totalDia: 0,
+        ventasHistoricas: 0,
+        gastoAcumulado: (Number(p.stock) * Number(p.costo))
     });
 };
 
 export const actualizarProducto = async (id, datos) => {
     const docRef = doc(db, "inventario", id);
-    await updateDoc(docRef, { 
-        ...datos, 
-        gastoAcumulado: (Number(datos.stock) * Number(datos.costo)) 
+    await updateDoc(docRef, {
+        ...datos,
+        gastoAcumulado: (Number(datos.stock) * Number(datos.costo))
     });
     return true;
 };
@@ -131,10 +91,10 @@ export const procesarCobroVenta = async (carrito) => {
     for (const item of carrito) {
         if (item.tipo === 'producto') {
             const qty = Number(item.qty) || 1;
-            await updateDoc(doc(db, "inventario", item.id), { 
-                stock: increment(-qty), 
-                totalDia: increment(item.precio), 
-                ventasHistoricas: increment(qty) 
+            await updateDoc(doc(db, "inventario", item.id), {
+                stock: increment(-qty),
+                totalDia: increment(item.precio),
+                ventasHistoricas: increment(qty)
             });
         } else if (item.tipo === 'impresion') {
             // 1. Registrar el ingreso

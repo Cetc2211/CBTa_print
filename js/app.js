@@ -40,9 +40,11 @@ function toast(msg, t=''){
   const el = document.createElement('div');
   el.className = `toast ${t==='ok'?'ok':t==='er'?'er':t==='wa'?'wa':''}`;
   el.textContent = msg;
+  el.style.transition = 'opacity .4s';
   document.getElementById('toasts').appendChild(el);
-  setTimeout(()=>el.style.opacity='0', 2600);
-  setTimeout(()=>el.remove(), 3000);
+  const vida = t==='er' ? 8000 : 2600;   // los errores dejan más tiempo de lectura
+  setTimeout(()=>el.style.opacity='0', vida);
+  setTimeout(()=>el.remove(), vida + 400);
 }
 
 // ─── FORMAT ────────────────────────────────────────────────────────
@@ -1150,6 +1152,7 @@ window.enviarArchivo = async () => {
   }
 
   try {
+    btn.textContent = '☁️ Subiendo a la nube…';
     const ok = await enviarDocumentoNube({ usuario, archivo: archivoFinal, paginas, tipoImpresion:tipoImpAlumno });
     btn.disabled=false; btn.innerHTML='📤 Enviar al Profr. Cecilio';
     if(ok){ document.getElementById('ov-exito').classList.add('on'); }
@@ -1421,12 +1424,15 @@ window.agregarImpresionImagenAdmin = async () => {
     const nombreArchivo = `img_${Date.now()}_${usuario.replace(/\s+/g, '_')}.pdf`;
     const pdfFile = new File([pdfBlob], nombreArchivo, { type: 'application/pdf' });
 
-    const ok = await enviarDocumentoNube({
-      usuario,
-      archivo: pdfFile,
-      paginas: 1,
-      tipoImpresion: tipo,
-    });
+    const ok = await (async () => {
+      btnAgregar.innerHTML = '☁️ Subiendo a la nube…';
+      return enviarDocumentoNube({
+        usuario,
+        archivo: pdfFile,
+        paginas: 1,
+        tipoImpresion: tipo,
+      });
+    })();
 
     if (ok) {
       // Agregar al carrito automáticamente

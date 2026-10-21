@@ -5,6 +5,40 @@ import {
 import { ref, uploadBytes, getDownloadURL, getStorage } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 import { db, storage, app } from "./firebase-config.js";
 
+// ─── Protecciones de subida a Storage ─────────────────────────────
+// Evita que la UI se quede colgada cuando el bucket no responde
+// (cuota agotada, bucket inexistente o CORS sin configurar).
+const TIMEOUT_BUCKET_PRINCIPAL = 60000; // 60 s para subidas reales
+const TIMEOUT_BUCKET_FALLBACK  = 20000; // 20 s (el fallback es un último recurso)
+
+function conTimeout(promesa, ms, etiqueta) {
+  let timer;
+  const vencido = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(
+        `${etiqueta}: la subida superó ${Math.round(ms/1000)} s sin respuesta. ` +
+        `Posible falta de cuota en el bucket o bucket no disponible.`
+      )),
+      ms
+    );
+  });
+  return Promise.race([promesa, vencido]).finally(() => clearTimeout(timer));
+}
+
+const ERRORES_STORAGE = {
+  'storage/quota-exceeded':
+    'La cuota de almacenamiento del proyecto Firebase está agotada. No se pueden subir archivos hasta liberar espacio o ampliar el plan (ver consola de Firebase → Storage).',
+  'storage/unauthorized':
+    'No hay permiso para subir archivos al almacenamiento (revisa storage.rules / autenticación).',
+  'storage/canceled': 'La subida fue cancelada.',
+  'storage/retry-limit-exceeded':
+    'La red no respondió y se agotaron los reintentos de subida.',
+};
+
+function mensajeStorage(e) {
+  return ERRORES_STORAGE[e?.code] || e?.message || 'Error desconocido de almacenamiento';
+}
+
 // Escuchar Cola de Impresión
 export const escucharColaImpresion = (callback) => {
     const q = query(collection(db, "cola_impresion"), orderBy("fecha", "desc"));
@@ -23,18 +57,33 @@ const subirDocumentoACola = async (datos, extras = {}) => {
     let url;
     try {
         const storageRef = ref(storage, storagePath);
-        const snapshot = await uploadBytes(storageRef, datos.archivo);
+        const snapshot = await conTimeout(
+            uploadBytes(storageRef, datos.archivo),
+            TIMEOUT_BUCKET_PRINCIPAL,
+            'Storage (bucket principal)'
+        );
         url = await getDownloadURL(snapshot.ref);
     } catch(storageErr) {
-        // Fallback al bucket legacy appspot (compatibilidad)
-        console.warn('[Storage] Bucket principal falló, intentando fallback:', storageErr.message);
+        // Cuota agotada: el fallback apunta al mismo proyecto, no tiene sentido insistir.
+        // Se informa de inmediato con un mensaje accionable.
+        if (storageErr?.code === 'storage/quota-exceeded') {
+            console.error('[Storage] Cuota agotada en bucket principal');
+            throw new Error(ERRORES_STORAGE['storage/quota-exceeded']);
+        }
+        // Fallback al bucket legacy appspot (compatibilidad), con tope de tiempo
+        console.warn('[Storage] Bucket principal falló, intentando fallback:', storageErr.code || storageErr.message);
         try {
             const legacyStorage = getStorage(app, 'gs://academic-tracker-qeoxi.appspot.com');
             const legacyRef = ref(legacyStorage, storagePath);
-            const snapshot = await uploadBytes(legacyRef, datos.archivo);
+            const snapshot = await conTimeout(
+                uploadBytes(legacyRef, datos.archivo),
+                TIMEOUT_BUCKET_FALLBACK,
+                'Storage (bucket de respaldo)'
+            );
             url = await getDownloadURL(snapshot.ref);
         } catch(fallbackErr) {
-            throw new Error('Storage: ' + fallbackErr.message);
+            console.error('[Storage] Fallback también falló:', fallbackErr.code || fallbackErr.message);
+            throw new Error('No se pudo subir el archivo. ' + mensajeStorage(fallbackErr));
         }
     }
 

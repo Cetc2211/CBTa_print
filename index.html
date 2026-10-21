@@ -627,11 +627,11 @@ tbody tr:hover{background:var(--paper)}
 
 <!-- Upload PDF o Imagen -->
 <div class="fld" style="margin-bottom:12px">
-  <label>Selecciona tu archivo (PDF o imagen)</label>
+  <label>Selecciona tu archivo (PDF, imagen o varias imágenes)</label>
   <div class="upload-area" id="upload-area">
-    <input type="file" id="input-archivo" accept=".pdf,image/png,image/jpeg,image/webp,image/gif,.heic,.heif">
+    <input type="file" id="input-archivo" accept=".pdf,image/png,image/jpeg,image/webp,image/gif,.heic,.heif" multiple>
     <div class="up-icon">📁</div>
-    <p>Toca aquí para seleccionar tu PDF o imagen</p>
+    <p>Toca aquí para elegir un PDF, una imagen o varias</p>
     <p class="up-file" id="up-filename">Ningún archivo seleccionado</p>
   </div>
 </div>
@@ -651,6 +651,29 @@ tbody tr:hover{background:var(--paper)}
       <option value="landscape">Horizontal (Oficio)</option>
     </select>
   </div>
+</div>
+
+<!-- Opciones de impresión de imagen (margen) -->
+<div id="opciones-imagen-wrap" style="display:none;margin-bottom:14px">
+  <label style="font-size:.82rem;font-weight:600;color:var(--ink2);display:block;margin-bottom:8px">Tamaño en la hoja</label>
+  <select id="img-margen" style="width:100%;padding:8px;border:1px solid var(--paper3);border-radius:var(--rs);font-family:var(--f);font-size:.78rem;background:var(--paper)" onchange="cambiarMargenImagen(this.value)">
+    <option value="normal">Margen normal (con borde blanco)</option>
+    <option value="cero">Borde a borde — usa toda la hoja (ideal para fotos)</option>
+  </select>
+</div>
+
+<!-- Varias imágenes: distribución por hoja -->
+<div id="multi-img-wrap" style="display:none;margin-bottom:14px">
+  <label style="font-size:.82rem;font-weight:600;color:var(--ink2);display:block;margin-bottom:8px">Imágenes — toca una para incluirla o quitarla</label>
+  <div id="multi-img-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px"></div>
+  <label style="font-size:.82rem;font-weight:600;color:var(--ink2);display:block;margin:12px 0 6px">Imágenes por hoja</label>
+  <select id="multi-porhoja" style="width:100%;padding:8px;border:1px solid var(--paper3);border-radius:var(--rs);font-family:var(--f);font-size:.78rem;background:var(--paper)" onchange="cambiarPorHoja()">
+    <option value="1">1 por hoja — cada imagen llena su propia hoja</option>
+    <option value="2">2 por hoja</option>
+    <option value="4" selected>4 por hoja</option>
+    <option value="6">6 por hoja</option>
+    <option value="9">9 por hoja</option>
+  </select>
 </div>
 
 <!-- Info páginas -->

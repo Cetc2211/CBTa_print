@@ -30,6 +30,8 @@ let colaActual    = [];    // snapshot en tiempo real de Firebase
 let inventario    = [];    // snapshot en tiempo real de Firebase
 let adminIniciado = false;
 let seccionAdminActiva = 'dashboard';   // sección visible del panel admin
+let multiImagenes  = [];   // [{file,img,sel,url}] modo varias imágenes (alumno)
+let margenImagen   = 'normal'; // 'normal' | 'cero' — margen al convertir imagen→PDF
 
 // ─── LOCAL DB (egresos y movimientos de stock — localStorage) ──────
 const LS = {
@@ -1185,11 +1187,25 @@ window.selTipo = (el, tipo) => {
 };
 
 document.getElementById('input-archivo')?.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
+  const files = [...e.target.files];
+  if(!files.length) return;
 
-  // Ocultar preview de imagen previo
+  // Ocultar previews previos
   ocultarPreviewImagen();
+
+  // Varias imágenes → modo cuadrícula con distribución por hoja
+  if(files.length > 1){
+    if(files.some(f => !esImagen(f))){
+      toast('Para varias imágenes solo se aceptan imágenes (JPG, PNG, WEBP). Para un PDF, mándalo solo.','er');
+      e.target.value = '';
+      return;
+    }
+    if(files.length > 20){ toast('Máximo 20 imágenes por envío','er'); e.target.value=''; return; }
+    await cargarMultiImagenes(files);
+    return;
+  }
+
+  const file = files[0];
 
   if(esImagen(file)){
     // Flujo de imagen
@@ -1227,26 +1243,45 @@ function actualizarCostoAlumno(pags){
 }
 
 window.enviarArchivo = async () => {
-  const archivo = document.getElementById('input-archivo').files[0];
+  const input  = document.getElementById('input-archivo');
   const paginas = parseInt(document.getElementById('alumno-pags').textContent)||0;
   const usuario = localStorage.getItem('usuario_cbta');
-  if(!archivo){ toast('Seleccione un archivo PDF','er'); return; }
+  const selMulti = multiSeleccionadas();
+  const esMulti  = input.files.length > 1 && selMulti.length > 0;
+  if(input.files.length === 0){ toast('Seleccione un archivo PDF','er'); return; }
   if(paginas===0){ toast('El archivo no tiene páginas detectadas','er'); return; }
 
   const btn = document.getElementById('btn-enviar');
   btn.disabled=true; btn.textContent='Enviando…';
 
-  // Si es imagen, convertir a PDF primero
-  let archivoFinal = archivo;
-  if(esImagen(archivo) && imagenActual){
+  let archivoFinal = null;
+
+  // Varias imágenes → un solo PDF con cuadrícula
+  if(esMulti){
     try {
-      btn.textContent = 'Convirtiendo imagen a PDF…';
-      const pdfBlob = await imagenAPdfBlob(imagenActual, imagenRotation);
-      archivoFinal = new File([pdfBlob], archivo.name.replace(/\.[^.]+$/, '.pdf'), { type: 'application/pdf' });
+      btn.textContent = 'Convirtiendo imágenes a PDF…';
+      const { por } = multiPaginas();
+      const pdfBlob = await construirPdfMultiImagenes(selMulti, por);
+      archivoFinal = new File([pdfBlob], `imagenes_${selMulti.length}.pdf`, { type: 'application/pdf' });
     } catch(e){
-      toast('Error al convertir imagen: '+e.message,'er');
+      toast('Error al combinar imágenes: '+e.message,'er');
       btn.disabled=false; btn.innerHTML='📤 Enviar al Profr. Cecilio';
       return;
+    }
+  } else {
+    const archivo = input.files[0];
+    archivoFinal = archivo;
+    // Si es imagen, convertir a PDF primero
+    if(esImagen(archivo) && imagenActual){
+      try {
+        btn.textContent = 'Convirtiendo imagen a PDF…';
+        const pdfBlob = await imagenAPdfBlob(imagenActual, imagenRotation);
+        archivoFinal = new File([pdfBlob], archivo.name.replace(/\.[^.]+$/, '.pdf'), { type: 'application/pdf' });
+      } catch(e){
+        toast('Error al convertir imagen: '+e.message,'er');
+        btn.disabled=false; btn.innerHTML='📤 Enviar al Profr. Cecilio';
+        return;
+      }
     }
   }
 
@@ -1306,6 +1341,8 @@ function mostrarPreviewImagen(file) {
       imagenRotation = 0;
       dibujarImagenEnCanvas(canvas, img, 0);
       wrap.style.display = 'block';
+      const opWrap = document.getElementById('opciones-imagen-wrap');
+      if (opWrap) opWrap.style.display = 'block';
 
       // 1 imagen = 1 hoja
       document.getElementById('alumno-pags').textContent = '1';
@@ -1354,27 +1391,35 @@ window.aplicarOrientacionImagen = () => {
   dibujarImagenEnCanvas(canvas, imagenActual, imagenRotation);
 };
 
-async function renderImagenAPdf(img, rotation, maxDim, calidad) {
-  // Tamaño de página estándar (puntos, 72 dpi)
+async function renderImagenAPdf(img, rotation, maxDim, calidad, margenPt = 36) {
   const isRotated = (rotation === 90 || rotation === -90 || rotation === 270);
   const imgW = isRotated ? img.naturalHeight : img.naturalWidth;
   const imgH = isRotated ? img.naturalWidth : img.naturalHeight;
 
   const CARTA_W = 612, CARTA_H = 792;
-  const margen = 36; // 0.5 pulgada
-  const usableW = CARTA_W - 2 * margen;
-  const usableH = CARTA_H - 2 * margen;
+  const margen = margenPt;
 
-  const scaleImg = Math.min(usableW / imgW, usableH / imgH, 1);
+  // Con margen 0 (borde a borde) se prueba también la página horizontal
+  // y se queda la orientación que haga la imagen más grande.
+  let pageW = CARTA_W, pageH = CARTA_H, scaleImg;
+  if (margen === 0) {
+    const sVert = Math.min(CARTA_W / imgW, CARTA_H / imgH);
+    const sHorz = Math.min(CARTA_H / imgW, CARTA_W / imgH);
+    if (sHorz > sVert) { pageW = CARTA_H; pageH = CARTA_W; scaleImg = sHorz; }
+    else { scaleImg = sVert; }
+  } else {
+    const usableW0 = CARTA_W - 2 * margen;
+    const usableH0 = CARTA_H - 2 * margen;
+    scaleImg = Math.min(usableW0 / imgW, usableH0 / imgH, 1);
+  }
+
   const drawW = imgW * scaleImg;
   const drawH = imgH * scaleImg;
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: drawW > drawH ? 'l' : 'p', unit: 'pt', format: 'letter' });
+  const doc = new jsPDF({ orientation: pageW > pageH ? 'l' : 'p', unit: 'pt', format: 'letter' });
 
   // Centrar imagen
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
   const x = (pageW - drawW) / 2;
   const y = (pageH - drawH) / 2;
 
@@ -1403,6 +1448,7 @@ async function renderImagenAPdf(img, rotation, maxDim, calidad) {
 
 async function imagenAPdfBlob(img, rotation) {
   // Escalera de compresión: intenta la mejor calidad y baja hasta caber
+  const margenPt = margenImagen === 'cero' ? 0 : 36;
   const intentos = [
     { maxDim: 1600, calidad: 0.78 },
     { maxDim: 1200, calidad: 0.62 },
@@ -1410,18 +1456,168 @@ async function imagenAPdfBlob(img, rotation) {
   ];
   let ultimo = null;
   for (const it of intentos) {
-    ultimo = await renderImagenAPdf(img, rotation, it.maxDim, it.calidad);
+    ultimo = await renderImagenAPdf(img, rotation, it.maxDim, it.calidad, margenPt);
     if (ultimo.size <= MAX_ARCHIVO_BYTES) return ultimo;
   }
   return ultimo; // el tamaño se valida al enviar
 }
 
+// Construye un PDF con varias imágenes distribuidas en cuadrícula:
+// 1 = una imagen por hoja, 2 = 1×2, 4 = 2×2, 6 = 2×3, 9 = 3×3.
+// Cada imagen se escala proporcionalmente dentro de su celda.
+async function construirPdfMultiImagenes(items, porHoja){
+  const margenPt = margenImagen === 'cero' ? 0 : 36;
+  const GAP = margenPt === 0 ? 4 : 14;
+  // Más imágenes por hoja = cada una puede pesar menos
+  const MAXDIM = { 1: 1600, 2: 1200, 4: 900, 6: 800, 9: 700 }[porHoja] || 900;
+
+  const aDataUrl = (img, maxDim, q) => {
+    const factor = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+    const cw = Math.max(1, Math.round(img.naturalWidth * factor));
+    const ch = Math.max(1, Math.round(img.naturalHeight * factor));
+    const c = document.createElement('canvas');
+    c.width = cw; c.height = ch;
+    c.getContext('2d').drawImage(img, 0, 0, cw, ch);
+    return c.toDataURL('image/jpeg', q);
+  };
+
+  const GEOMETRIA = {
+    1: { cols: 1, rows: 1 },
+    2: { cols: 1, rows: 2 },
+    4: { cols: 2, rows: 2 },
+    6: { cols: 2, rows: 3 },
+    9: { cols: 3, rows: 3 },
+  }[porHoja] || { cols: 2, rows: 2 };
+
+  const { jsPDF } = window.jspdf;
+  let quality = 0.72;
+  let blob = null;
+
+  for(let intento = 0; intento < 3; intento++){
+    let doc = null;
+    const grupos = [];
+    for(let i = 0; i < items.length; i += porHoja) grupos.push(items.slice(i, i + porHoja));
+
+    for(const grupo of grupos){
+      const dataUrls = grupo.map(m => aDataUrl(m.img, MAXDIM, quality));
+
+      // Con 1 por hoja, cada página adopta la orientación de su imagen
+      const horiz = porHoja === 1
+        ? grupo[0].img.naturalWidth > grupo[0].img.naturalHeight
+        : false;
+      if(!doc) doc = new jsPDF({ orientation: horiz ? 'l' : 'p', unit: 'pt', format: 'letter' });
+      else     doc.addPage('letter', horiz ? 'l' : 'p');
+
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const usableW = pageW - 2*margenPt;
+      const usableH = pageH - 2*margenPt;
+      const cellW = (usableW - (GEOMETRIA.cols-1)*GAP) / GEOMETRIA.cols;
+      const cellH = (usableH - (GEOMETRIA.rows-1)*GAP) / GEOMETRIA.rows;
+
+      grupo.forEach((m, idx) => {
+        const col = idx % GEOMETRIA.cols;
+        const row = Math.floor(idx / GEOMETRIA.cols);
+        const cellX = margenPt + col*(cellW+GAP);
+        const cellY = margenPt + row*(cellH+GAP);
+        const iw = m.img.naturalWidth, ih = m.img.naturalHeight;
+        const s = Math.min(cellW/iw, cellH/ih, margenPt === 0 ? Infinity : 1);
+        const dw = iw*s, dh = ih*s;
+        doc.addImage(dataUrls[idx], 'JPEG', cellX + (cellW-dw)/2, cellY + (cellH-dh)/2, dw, dh);
+      });
+    }
+
+    blob = doc.output('blob');
+    if(blob.size <= MAX_ARCHIVO_BYTES) return blob;
+    quality = Math.max(0.42, quality - 0.14);   // reintenta más comprimido
+  }
+  return blob; // el límite se valida al enviar
+}
+
 function ocultarPreviewImagen() {
   const wrap = document.getElementById('img-preview-wrap');
   if (wrap) wrap.style.display = 'none';
+  const opWrap = document.getElementById('opciones-imagen-wrap');
+  if (opWrap) opWrap.style.display = 'none';
+  const mw = document.getElementById('multi-img-wrap');
+  if (mw) mw.style.display = 'none';
   imagenActual = null;
   imagenRotation = 0;
   imagenOriginalSrc = null;
+  multiImagenes = [];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODO VARIAS IMÁGENES — cuadrícula + distribución por hoja
+// ═══════════════════════════════════════════════════════════════
+
+async function cargarMultiImagenes(files){
+  document.getElementById('up-filename').textContent = `${files.length} imágenes seleccionadas`;
+  document.getElementById('alumno-cost-sub').textContent = 'Cargando imágenes…';
+  const items = [];
+  for(const f of files){
+    try {
+      const url = URL.createObjectURL(f);
+      const img = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = () => rej(new Error('imagen no válida'));
+        i.src = url;
+      });
+      items.push({ file: f, img, sel: true, url });
+    } catch(err){
+      toast(`No se pudo leer "${f.name}"`,'wa');
+    }
+  }
+  multiImagenes = items;
+  if(!items.length){
+    toast('Ninguna imagen válida','er');
+    document.getElementById('input-archivo').value = '';
+    document.getElementById('up-filename').textContent = 'Ningún archivo seleccionado';
+    return;
+  }
+  renderMultiGrid();
+  document.getElementById('multi-img-wrap').style.display = 'block';
+  document.getElementById('opciones-imagen-wrap').style.display = 'block';
+  document.getElementById('pags-info').style.display = 'flex';
+  actualizarMulti();
+}
+
+function renderMultiGrid(){
+  const grid = document.getElementById('multi-img-grid');
+  if(!grid) return;
+  grid.innerHTML = multiImagenes.map((m, i) => `
+    <button type="button" onclick="toggleMultiImg(${i})" style="position:relative;padding:0;border:2px solid ${m.sel?'#d4521a':'var(--paper3)'};border-radius:8px;overflow:hidden;background:var(--paper2);cursor:pointer;opacity:${m.sel?1:.35}">
+      <img src="${m.url}" style="width:100%;height:64px;object-fit:cover;display:block" alt="">
+      <span style="position:absolute;top:2px;right:2px;background:${m.sel?'#d4521a':'#999'};color:#fff;border-radius:50%;width:18px;height:18px;font-size:.62rem;line-height:18px">${m.sel?'✓':''}</span>
+    </button>
+  `).join('');
+}
+
+window.toggleMultiImg = (i) => {
+  if(!multiImagenes[i]) return;
+  multiImagenes[i].sel = !multiImagenes[i].sel;
+  renderMultiGrid();
+  actualizarMulti();
+};
+
+window.cambiarPorHoja = () => { actualizarMulti(); };
+window.cambiarMargenImagen = (v) => { margenImagen = v; };
+
+function multiSeleccionadas(){ return multiImagenes.filter(m => m.sel); }
+
+function multiPaginas(){
+  const n = multiSeleccionadas().length;
+  const por = parseInt(document.getElementById('multi-porhoja')?.value)||4;
+  return { n, por, pags: n ? Math.ceil(n/por) : 0 };
+}
+
+function actualizarMulti(){
+  const { n, por, pags } = multiPaginas();
+  const nombre = document.getElementById('up-filename');
+  if(nombre) nombre.textContent = n ? `${n} imagen${n!==1?'es':''} · ${pags} hoja${pags!==1?'s':''} (${por} por hoja)` : '0 imágenes seleccionadas';
+  document.getElementById('alumno-pags').textContent = pags;
+  actualizarCostoAlumno(pags);
 }
 
 // ═══════════════════════════════════════════════════════════════════

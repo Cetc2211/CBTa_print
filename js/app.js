@@ -16,7 +16,7 @@ import { subirFotoProducto, eliminarFotoProducto } from "./database_additions.js
 
 // ─── PRECIOS (misma config que el original) ────────────────────────
 const PRECIOS = { laser_bn: 1.00, smart_tank: 2.00, smart_tank_saturada: 3.00 };
-const LABELS  = { laser_bn: 'Láser B&N', smart_tank: 'Smart Tank Color' };
+const LABELS  = { laser_bn: 'Láser B&N', smart_tank: 'Smart Tank Color', qr: 'Etiquetas QR' };
 
 // ─── ESTADO GLOBAL ─────────────────────────────────────────────────
 let carrito       = [];
@@ -42,6 +42,7 @@ let adminImgSaturacion = null;   // detección en la imagen del flujo admin (tab
 const UMBRAL_SATURACION = 0.60;
 
 function precioUnitario(tipo, saturada){
+  if(tipo === 'qr') return 0; // etiquetas de inventario: uso interno, no se cobra
   if(tipo === 'smart_tank' && saturada) return PRECIOS.smart_tank_saturada;
   return PRECIOS[tipo] || PRECIOS.laser_bn;
 }
@@ -622,20 +623,21 @@ function renderColaVenta(){
     return;
   }
   el.innerHTML = colaActual.map(doc=>{
-    const precio = precioUnitario(doc.tipoImpresion, doc.tipoImpresion==='smart_tank' && doc.saturada===true);
+    const esQR = doc.tipoImpresion==='qr';
+    const precio = esQR ? 0 : precioUnitario(doc.tipoImpresion, doc.tipoImpresion==='smart_tank' && doc.saturada===true);
     const total  = (doc.paginas * precio).toFixed(2);
     const label  = (LABELS[doc.tipoImpresion]||'B&N') + (doc.tipoImpresion==='smart_tank'&&doc.saturada?' (saturada)':'');
     return `<div class="imp-item">
-      <span class="imp-icon">${doc.tipoImpresion==='smart_tank'?'🎨':'🖨️'}</span>
+      <span class="imp-icon">${esQR?'🏷️':(doc.tipoImpresion==='smart_tank'?'🎨':'🖨️')}</span>
       <div class="imp-info">
         <div class="imp-name">${doc.archivo||'Documento'}</div>
         <div class="imp-meta">${doc.usuario} · ${label} · ${doc.paginas} pág${doc.paginas!==1?'s':''}</div>
       </div>
       <div class="imp-actions">
         ${(doc.archivoBase64||doc.archivoURL)?`<button class="btn bs bsm bic" title="Ver PDF" onclick="abrirPDFCola('${doc.id}')">👁️</button>`:''}
-        <button class="btn bi bsm" onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas},'${label}')">
-          +$${total}
-        </button>
+        ${esQR
+          ? `<button class="btn br bsm" title="Eliminar (uso interno, no se cobra)" onclick="eliminarDeCola('${doc.id}','${doc.archivo}')">🗑️</button>`
+          : `<button class="btn bi bsm" onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas},'${label}')">\n          +$${total}\n        </button>`}
       </div>
     </div>`;
   }).join('');
@@ -649,17 +651,20 @@ function renderColaFull(){
     return;
   }
   el.innerHTML = colaActual.map(doc=>{
-    const precio = precioUnitario(doc.tipoImpresion, doc.tipoImpresion==='smart_tank' && doc.saturada===true);
+    const esQR = doc.tipoImpresion==='qr';
+    const precio = esQR ? 0 : precioUnitario(doc.tipoImpresion, doc.tipoImpresion==='smart_tank' && doc.saturada===true);
     const total  = (doc.paginas * precio).toFixed(2);
     const label  = (LABELS[doc.tipoImpresion]||'B&N') + (doc.tipoImpresion==='smart_tank'&&doc.saturada?' (saturada)':'');
     const fecha  = doc.fecha?.toDate ? doc.fecha.toDate().toLocaleString('es-MX') : '—';
     const badgeEstado = '<span class="badge bpend">⏳ Pendiente</span>';
-    const accionPrincipal = `<button class="btn bi bsm wf" style="justify-content:center"
-          onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas}','${label}');go('venta')">
+    const accionPrincipal = esQR
+      ? '<span class="badge bok" style="align-self:center">🏷️ Uso interno — sin cobro</span>'
+      : `<button class="btn bi bsm wf" style="justify-content:center"
+          onclick="addImpToCart('${doc.id}','${doc.archivo}',${total},'${doc.usuario}',${doc.paginas},'${label}');go('venta')">
           🛒 Cobrar $${total}
         </button>`;
     return `<div class="imp-item card" style="margin-bottom:10px;padding:16px 18px">
-      <span class="imp-icon" style="font-size:2rem">${doc.tipoImpresion==='smart_tank'?'🎨':'🖨️'}</span>
+      <span class="imp-icon" style="font-size:2rem">${esQR?'🏷️':(doc.tipoImpresion==='smart_tank'?'🎨':'🖨️')}</span>
       <div class="imp-info">
         <div class="imp-name" style="font-size:.9rem">${doc.archivo||'Documento'}</div>
         <div class="imp-meta">👤 ${doc.usuario} &nbsp;·&nbsp; ${label} &nbsp;·&nbsp; ${doc.paginas} páginas &nbsp;·&nbsp; ${fecha}</div>
@@ -1108,25 +1113,25 @@ function qrLabelHTML(p, t, o){
 
 function construirPaginasQR(){
   const o=qrsOpciones(), T=TAMS_QR[o.tam], cap=T.cols*T.rows;
-  const etqs=[];
+  const items=[];
   inventario.filter(p=>qrSel.has(p.id)).forEach(p=>{
-    for(let i=0;i<o.copias;i++) etqs.push(qrLabelHTML(p,o.tam,o));
+    for(let i=0;i<o.copias;i++) items.push({ p, t:o.tam });
   });
   const pags=[];
-  for(let i=0;i<etqs.length;i+=cap) pags.push(etqs.slice(i,i+cap));
-  return { o, T, pags, total:etqs.length };
+  for(let i=0;i<items.length;i+=cap) pags.push(items.slice(i,i+cap));
+  return { o, T, pags, total:items.length };
 }
 
 function renderQrsPreview(){
   const res=document.getElementById('qrs-resumen'), prev=document.getElementById('qrs-prev');
   if(!res||!prev) return;
-  const { T, pags, total }=construirPaginasQR();
+  const { o, T, pags, total }=construirPaginasQR();
   if(total===0){
     res.innerHTML='<span style="color:var(--red)">Seleccione al menos un producto</span>';
     prev.innerHTML=''; return;
   }
   res.innerHTML=`📦 ${qrSel.size} producto(s) · 🧾 <b>${total}</b> etiqueta(s) · 📄 <b>${pags.length}</b> hoja(s) carta · ${T.cols}×${T.rows} por hoja · QR ${T.qr/10} cm`;
-  const p1=pags[0], filas=Math.ceil(p1.length/T.cols), hMm=filas*T.ch+(filas-1)*2;
+  const p1=pags[0].map(it=>qrLabelHTML(it.p,it.t,o)), filas=Math.ceil(p1.length/T.cols), hMm=filas*T.ch+(filas-1)*2;
   prev.innerHTML=`
     <div style="font-size:.72rem;color:var(--ink3);margin:2px 0 5px">Vista previa · página 1 (50 %):</div>
     <div style="width:${204*0.5}mm;max-width:100%;margin:0 auto;height:${hMm*0.5}mm;overflow:hidden;border:1px solid var(--paper3);border-radius:6px">
@@ -1136,107 +1141,97 @@ function renderQrsPreview(){
     </div>`;
 }
 
-window.imprimirQRMasivo = async () => {
-  const { T, pags, total }=construirPaginasQR();
-  if(total===0){ toast('Seleccione al menos un producto','er'); return; }
-  toast(`⏳ Preparando ${total} etiquetas en ${pags.length} hoja(s)…`,'wa');
+// QR local con qrcode-generator (sin depender de quickchart.io ni CORS):
+// matriz de módulos → canvas con zona silenciosa estándar → JPEG dataURL
+// (JPEG y no PNG: jsPDF incrusta el JPEG tal cual (~10 KB); los PNG de canvas
+//  traen canal alfa y jsPDF los descomprime a RGB crudo ~300 KB por QR)
+function qrDataURL(data, px=270){
+  if(!window.qrcode) throw new Error('Generador de QR no disponible (revisa tu conexión a internet)');
+  const qr=qrcode(0,'M');
+  qr.addData(String(data));
+  qr.make();
+  const n=qr.getModuleCount(), quiet=3;
+  const scale=Math.max(4, Math.floor(px/(n+quiet*2)));
+  const size=(n+quiet*2)*scale;
+  const cv=document.createElement('canvas');
+  cv.width=cv.height=size;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,size,size);
+  ctx.fillStyle='#0f1923';
+  for(let r=0;r<n;r++) for(let c=0;c<n;c++)
+    if(qr.isDark(r,c)) ctx.fillRect((c+quiet)*scale,(r+quiet)*scale,scale,scale);
+  return cv.toDataURL('image/jpeg', 0.85);
+}
 
-  // Mismo patrón validado de imprimirPDFCola: iframe con src=blob + onload.
-  // (document.write + polling hace que Chrome a veces ignore print() en silencio)
-  const html=construirHTMLQR(T, pags, false);
-  const url=URL.createObjectURL(new Blob([html], {type:'text/html'}));
-
-  const ifr=document.createElement('iframe');
-  ifr.setAttribute('aria-hidden','true');
-  ifr.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0.01;border:0';
-
-  // 1) Cargar el documento (con tope de seguridad de 10 s)
-  await new Promise(res=>{
-    ifr.onload=res;
-    setTimeout(res,10000);
-    document.body.appendChild(ifr);
-    ifr.src=url;
-  });
-
-  // 2) Esperar a que los QR (quickchart.io) terminen de cargar
-  const d=ifr.contentDocument;
-  const cargados = await new Promise(res=>{
-    const t0=Date.now();
-    const iv=setInterval(()=>{
-      const imgs=[...d.images];
-      if(imgs.length && imgs.every(i=>i.complete)){
-        clearInterval(iv); res(imgs.filter(i=>i.naturalWidth>0).length);
-      } else if(Date.now()-t0>25000){
-        clearInterval(iv); res(imgs.filter(i=>i.naturalWidth>0).length);
+// PDF carta con las etiquetas (jsPDF, unidades pt; 1 mm = 2.83465 pt)
+function generarPdfQREtiquetas(T, pags, o){
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({ orientation:'p', unit:'pt', format:'letter' });
+  const mm=2.83465;
+  const cw=T.cw*mm, ch=T.ch*mm, gap=2*mm;
+  const gridW=T.cols*cw+(T.cols-1)*gap;
+  const gridH=T.rows*ch+(T.rows-1)*gap;
+  const offX=(612-gridW)/2, offY=(792-gridH)/2;
+  const padTop=2.5*mm, gapTxt=(T.qr>=27?1:0.8)*mm;
+  const cache={};
+  pags.forEach((pg,pi)=>{
+    if(pi>0) doc.addPage('letter','p');
+    pg.forEach((it,li)=>{
+      const col=li%T.cols, row=Math.floor(li/T.cols);
+      const x=offX+col*(cw+gap), y=offY+row*(ch+gap);
+      if(o.borde){
+        doc.setDrawColor(154,167,181);
+        doc.setLineWidth(0.6);
+        doc.setLineDashPattern([2,2],0);
+        doc.roundedRect(x,y,cw,ch,3,3);
+        doc.setLineDashPattern([],0);
       }
-    },120);
+      if(!cache[it.p.id]) cache[it.p.id]=qrDataURL(it.p.id, Math.round(T.qr*10));
+      const qrPt=T.qr*mm;
+      doc.addImage(cache[it.p.id],'JPEG', x+(cw-qrPt)/2, y+padTop, qrPt, qrPt);
+      let cy=y+padTop+qrPt+2.2*mm;
+      doc.setFont('helvetica','bold');
+      if(o.nombre && it.p.nombre){
+        doc.setFontSize(T.f1);
+        doc.setTextColor(15,25,35);
+        const lineas=doc.splitTextToSize(it.p.nombre, cw-2*mm).slice(0,2);
+        doc.text(lineas, x+cw/2, cy, { align:'center', baseline:'top' });
+        cy+=lineas.length*(T.f1*1.15)+gapTxt;
+      }
+      if(o.precio){
+        doc.setFontSize(T.f2);
+        doc.setTextColor(212,82,26);
+        doc.text($m(it.p.venta||0), x+cw/2, cy, { align:'center', baseline:'top' });
+      }
+    });
   });
+  return doc;
+}
 
-  if(cargados===0){
-    ifr.remove(); URL.revokeObjectURL(url);
-    toast('No se pudieron descargar los códigos QR. Verifique su conexión a internet e intente de nuevo.','er');
-    return;
-  }
-  if(cargados<total) toast(`⚠️ ${total-cargados} QR no cargaron; se imprimen los demás`,'wa');
-  await new Promise(r=>setTimeout(r,250)); // asentar el render antes de imprimir
-
-  // 3) Imprimir y VERIFICAR que el diálogo realmente arrancó (beforeprint)
-  let iniciado=false;
+// Genera el PDF de etiquetas y lo envía a la Cola de Impresión
+// (mismo flujo validado que los archivos de los alumnos: cola → 🖨️ Imprimir)
+window.enviarQRsACola = async () => {
+  const { o, T, pags, total }=construirPaginasQR();
+  if(total===0){ toast('Seleccione al menos un producto','er'); return; }
+  toast(`⏳ Generando PDF con ${total} etiquetas en ${pags.length} hoja(s)…`,'wa');
   try{
-    ifr.contentWindow.addEventListener('beforeprint', ()=>{ iniciado=true; });
-    ifr.contentWindow.focus();
-    ifr.contentWindow.print();
-    if(!iniciado) await new Promise(r=>setTimeout(r,1200)); // tolerancia asíncrona
+    const doc=generarPdfQREtiquetas(T, pags, o);
+    const blob=doc.output('blob');
+    if(blob.size > MAX_ARCHIVO_BYTES){
+      throw new Error(`el PDF pesa ${(blob.size/1048576).toFixed(1)} MB y el límite es 0.7 MB — reduzca la selección de productos o las copias`);
+    }
+    const fecha=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short'});
+    const archivo=new File([blob],`Etiquetas QR ${fecha}.pdf`,{type:'application/pdf'});
+    const usuario=localStorage.getItem('usuario_cbta')||'Admin';
+    await enviarDocumentoNube({ usuario, archivo, paginas:pags.length, tipoImpresion:'qr' });
+    closeModal('ov-qrs');
+    go('cola');
+    toast(`✅ ${total} etiquetas (${pags.length} hoja(s)) enviadas a la cola de impresión`,'ok');
   }catch(e){
-    console.warn('[imprimirQRMasivo] print() falló:', e);
+    console.error('[enviarQRsACola]',e);
+    toast('Error al generar el PDF: '+e.message,'er');
   }
-
-  if(!iniciado){
-    // Respaldo: pestaña visible con botón de impresión (nunca dejar al usuario sin nada)
-    ifr.remove(); URL.revokeObjectURL(url);
-    abrirRespaldoQR(T, pags);
-    return;
-  }
-
-  const limpiar=()=>{ try{ ifr.remove(); URL.revokeObjectURL(url); }catch(e){} };
-  try{ ifr.contentWindow.addEventListener('afterprint', limpiar); }catch(e){}
-  setTimeout(limpiar, 120000);
 };
-
-// Respaldo visible: abre las etiquetas en una pestaña con botón de impresión
-function abrirRespaldoQR(T, pags){
-  const html=construirHTMLQR(T, pags, true);
-  const w=window.open('', '_blank');
-  if(!w){
-    toast('No se pudo abrir la vista de impresión. Permita ventanas emergentes (pop-ups) para este sitio e intente de nuevo.','er');
-    return;
-  }
-  w.document.write(html);
-  w.document.close();
-  toast('Se abrió una pestaña con las etiquetas: si el diálogo no aparece, pulse el botón 🖨️ Imprimir.','wa');
-}
-
-function construirHTMLQR(T, pags, conBanner){
-  const banner = conBanner ? `
-  <div class="bk-bar" style="position:sticky;top:0;z-index:9;background:#0f1923;color:#fff;padding:10px 14px;font-family:Arial,Helvetica,sans-serif;text-align:center;font-size:14px">
-    Si el diálogo de impresión no se abrió automáticamente:
-    <button onclick="window.print()" style="margin-left:8px;padding:8px 18px;background:#d4521a;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:14px">🖨️ Imprimir ahora</button>
-    <span style="opacity:.75;margin-left:8px">(o Ctrl+P / Cmd+P)</span>
-  </div>` : '';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Códigos QR — Inventario</title><style>
-    @page{size:letter;margin:6mm}
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:Arial,Helvetica,sans-serif;color:#0f1923}
-    .pg{page-break-after:always;display:grid;grid-template-columns:repeat(${T.cols},${T.cw}mm);gap:2mm;justify-content:center}
-    .pg:last-child{page-break-after:auto}
-    .lbl{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8mm;padding:1mm;text-align:center;border-radius:1.5mm;overflow:hidden}
-    .lbl img{display:block}
-    .nm{font-weight:700;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%;word-break:break-word}
-    .pr{font-weight:800;color:#d4521a;line-height:1}
-    @media print{.bk-bar{display:none}}
-  </style></head><body>${conBanner?'<script>try{window.onload=function(){setTimeout(function(){try{window.print()}catch(e){}},400)}}catch(e){}<\/script>':''}${banner}
-  <div style="padding-top:${conBanner?'4':'0'}mm">${pags.map(pg=>`<div class="pg">${pg.join('')}</div>`).join('')}</div></body></html>`;
-}
 
 // ─── Stock select para ajustes ──────────────────────────────────────
 function renderStockSelect(){

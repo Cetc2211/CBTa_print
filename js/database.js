@@ -54,6 +54,7 @@ const guardarDocumentoEnCola = async (datos, extras = {}) => {
         archivoBytes: datos.archivo.size,
         paginas: Number(datos.paginas),
         tipoImpresion: datos.tipoImpresion,
+        saturada: !!datos.saturada,
         fecha: serverTimestamp(),
         estatus: 'pendiente',
         ...extras,

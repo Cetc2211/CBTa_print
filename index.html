@@ -615,11 +615,11 @@ tbody tr:hover{background:var(--paper)}
     <div class="tipo-card sel" onclick="selTipo(this,'laser_bn')">
       <span class="tc-icon">🖨️</span>
       <div class="tc-info"><h4>Láser B&N</h4><p>Impresora HP Láser</p></div>
-      <span class="tc-price">$0.50</span>
+      <span class="tc-price">$1.00</span>
     </div>
     <div class="tipo-card" onclick="selTipo(this,'smart_tank')">
       <span class="tc-icon">🎨</span>
-      <div class="tc-info"><h4>Color</h4><p>Smart Tank Color</p></div>
+      <div class="tc-info"><h4>Color</h4><p>Smart Tank · foto saturada $3.00</p></div>
       <span class="tc-price">$2.00</span>
     </div>
   </div>
@@ -838,10 +838,16 @@ tbody tr:hover{background:var(--paper)}
             <div class="fld">
               <label>Tipo de impresión</label>
               <select id="im-tipo" onchange="calcularManual()">
-                <option value="laser_bn">🖨️ Láser B&N — $0.50/pág</option>
+                <option value="laser_bn">🖨️ Láser B&N — $1.00/pág</option>
                 <option value="smart_tank">🎨 Color — $2.00/pág</option>
               </select>
             </div>
+          </div>
+          <div class="fld" id="im-sat-wrap" style="display:none">
+            <label style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--ink2);cursor:pointer">
+              <input type="checkbox" id="im-sat" onchange="calcularManual()" style="width:16px;height:16px;accent-color:#d4521a">
+              Página saturada de color (tinta en toda la hoja) — sube a $3.00/pág
+            </label>
           </div>
           <div class="fld">
             <label>Nombre del cliente (opcional)</label>
@@ -886,14 +892,15 @@ tbody tr:hover{background:var(--paper)}
             <div class="fld">
               <label>Tipo de impresión</label>
               <select id="im-tipo-img" onchange="adminActualizarPrecioImagen()">
-                <option value="laser_bn">🖨️ Láser B&N — $0.50</option>
+                <option value="laser_bn">🖨️ Láser B&N — $1.00</option>
                 <option value="smart_tank">🎨 Color — $2.00</option>
               </select>
             </div>
           </div>
           <div style="background:var(--ink);border-radius:var(--rs);padding:16px;text-align:center">
             <div style="font-size:.72rem;color:#8fa3b1;text-transform:uppercase;letter-spacing:.5px">Total (1 imagen = 1 hoja)</div>
-            <div id="im-total-img" style="font-size:2rem;font-weight:800;color:#fff;margin-top:4px">$0.50</div>
+            <div id="im-total-img" style="font-size:2rem;font-weight:800;color:#fff;margin-top:4px">$1.00</div>
+            <div id="im-img-detect" style="font-size:.72rem;color:#8fa3b1;margin-top:4px;min-height:1em"></div>
           </div>
         </div>
       </div>

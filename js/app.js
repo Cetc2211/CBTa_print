@@ -15,7 +15,7 @@ import {
 import { subirFotoProducto, eliminarFotoProducto } from "./database_additions.js";
 
 // ─── PRECIOS (misma config que el original) ────────────────────────
-const PRECIOS = { laser_bn: 0.50, smart_tank: 2.00 };
+const PRECIOS = { laser_bn: 1.00, smart_tank: 2.00, smart_tank_saturada: 3.00 };
 const LABELS  = { laser_bn: 'Láser B&N', smart_tank: 'Smart Tank Color' };
 
 // ─── ESTADO GLOBAL ─────────────────────────────────────────────────
@@ -32,6 +32,141 @@ let adminIniciado = false;
 let seccionAdminActiva = 'dashboard';   // sección visible del panel admin
 let multiImagenes  = [];   // [{file,img,sel,url}] modo varias imágenes (alumno)
 let margenImagen   = 'normal'; // 'normal' | 'cero' — margen al convertir imagen→PDF
+let saturacionAlumno  = { cobertura:0, colorPct:0, saturada:false }; // detección en el archivo del alumno
+let adminImgSaturacion = null;   // detección en la imagen del flujo admin (tab imagen)
+
+// ─── PRECIO UNITARIO + DETECCIÓN DE SATURACIÓN DE TINTA ────────────
+// Saturada = el contenido (foto) lleva tinta en >= UMBRAL_SATURACION de su
+// superficie, es decir es una impresión "de tinta por todo el área".
+// Documentos con fondo blanco quedan en precio normal.
+const UMBRAL_SATURACION = 0.60;
+
+function precioUnitario(tipo, saturada){
+  if(tipo === 'smart_tank' && saturada) return PRECIOS.smart_tank_saturada;
+  return PRECIOS[tipo] || PRECIOS.laser_bn;
+}
+
+// Analiza un canvas y devuelve métricas de tinta (fracciones 0..1):
+//  cobertura = tinta sobre TODA la superficie analizada
+//  colorPct  = pixeles cromáticos sobre el total
+//  densidad  = tinta DENTRO del área con contenido (ignora bordes blancos)
+function analizarCoberturaCanvas(canvas){
+  try{
+    const W = canvas.width, H = canvas.height;
+    if(!W || !H) return null;
+    const ctx = canvas.getContext('2d');
+    const data = ctx.getImageData(0, 0, W, H).data;
+    const paso = Math.max(1, Math.floor(Math.max(W, H) / 160)); // muestreo ligero
+    const cols = Math.ceil(W / paso), rows = Math.ceil(H / paso);
+    const tinta = new Uint8Array(cols * rows);
+    const crom  = new Uint8Array(cols * rows);
+    let total = 0, nTinta = 0, nCrom = 0;
+    let minX = cols, maxX = -1, minY = rows, maxY = -1;
+    for(let ry = 0; ry < rows; ry++){
+      for(let cx = 0; cx < cols; cx++){
+        const x = Math.min(W-1, cx*paso), y = Math.min(H-1, ry*paso);
+        const i = (y * W + x) * 4;
+        const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+        total++;
+        if(a < 16) continue;                    // transparente = sin tinta
+        const lum = 0.299*r + 0.587*g + 0.114*b;
+        if(lum < 243){                          // pixel con tinta (no blanco)
+          tinta[ry*cols+cx] = 1; nTinta++;
+          if(cx < minX) minX = cx;  if(cx > maxX) maxX = cx;
+          if(ry < minY) minY = ry;  if(ry > maxY) maxY = ry;
+          const mx = Math.max(r,g,b), mn = Math.min(r,g,b);
+          if(mx - mn > 28){ crom[ry*cols+cx] = 1; nCrom++; }
+        }
+      }
+    }
+    if(!total || !nTinta) return { cobertura:0, colorPct:0, densidad:0 };
+    // Segunda pasada: densidad de tinta dentro de la caja que encierra el contenido
+    let enCaja = 0, cajTinta = 0;
+    for(let ry = minY; ry <= maxY; ry++){
+      for(let cx = minX; cx <= maxX; cx++){
+        enCaja++;
+        if(tinta[ry*cols+cx]) cajTinta++;
+      }
+    }
+    return {
+      cobertura: nTinta/total,
+      colorPct:  nCrom/total,
+      densidad:  enCaja ? cajTinta/enCaja : 0,
+    };
+  }catch(e){ return null; }
+}
+
+// Dibuja la imagen (con rotación) en un canvas pequeño y mide su cobertura
+function analizarImagen(img, rotation = 0){
+  try{
+    const isRot = (rotation === 90 || rotation === -90 || rotation === 270);
+    const iw = isRot ? img.naturalHeight : img.naturalWidth;
+    const ih = isRot ? img.naturalWidth  : img.naturalHeight;
+    if(!iw || !ih) return null;
+    const f = Math.min(1, 200 / Math.max(iw, ih));
+    const c = document.createElement('canvas');
+    c.width  = Math.max(1, Math.round(iw * f));
+    c.height = Math.max(1, Math.round(ih * f));
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.save();
+    ctx.translate(c.width/2, c.height/2);
+    ctx.rotate(rotation * Math.PI / 180);
+    ctx.drawImage(img, -img.naturalWidth*f/2, -img.naturalHeight*f/2,
+      img.naturalWidth*f, img.naturalHeight*f);
+    ctx.restore();
+    return analizarCoberturaCanvas(c);
+  }catch(e){ return null; }
+}
+
+function recalcularSaturacionImagen(){
+  if(!imagenActual){
+    saturacionAlumno = { cobertura:0, colorPct:0, saturada:false };
+    return;
+  }
+  const r = analizarImagen(imagenActual, imagenRotation);
+  saturacionAlumno = (r && r.densidad !== undefined)
+    ? { cobertura: r.densidad, colorPct: r.colorPct, saturada: r.densidad >= UMBRAL_SATURACION }
+    : { cobertura:0, colorPct:0, saturada:false };
+}
+
+function recalcularSaturacionMulti(){
+  const sel = multiSeleccionadas();
+  if(!sel.length){
+    saturacionAlumno = { cobertura:0, colorPct:0, saturada:false };
+    return;
+  }
+  const promedio  = sel.reduce((a,m)=>a+(m.densidad||0), 0) / sel.length;
+  const colorProm = sel.reduce((a,m)=>a+(m.colorPct||0), 0) / sel.length;
+  saturacionAlumno = { cobertura: promedio, colorPct: colorProm, saturada: promedio >= UMBRAL_SATURACION };
+}
+
+function recalcularSaturacion(){
+  if(multiImagenes.length) recalcularSaturacionMulti();
+  else if(imagenActual)    recalcularSaturacionImagen();
+  actualizarCostoAlumno();
+}
+
+function etiquetaTipoAlumno(){
+  if(tipoImpAlumno !== 'smart_tank') return 'B&N';
+  return saturacionAlumno.saturada ? 'Color 🔥' : 'Color';
+}
+
+function reevaluarAdminImagen(){
+  if(!adminImagenActual){
+    adminImgSaturacion = null;
+    const det = document.getElementById('im-img-detect');
+    if(det) det.textContent = '';
+    adminActualizarPrecioImagen();
+    return;
+  }
+  const an = analizarImagen(adminImagenActual, adminImagenRotation);
+  adminImgSaturacion = an
+    ? { cobertura: an.densidad, colorPct: an.colorPct, saturada: an.densidad >= UMBRAL_SATURACION }
+    : null;
+  adminActualizarPrecioImagen();
+}
 
 // ─── LOCAL DB (egresos y movimientos de stock — localStorage) ──────
 const LS = {
@@ -487,9 +622,9 @@ function renderColaVenta(){
     return;
   }
   el.innerHTML = colaActual.map(doc=>{
-    const precio = PRECIOS[doc.tipoImpresion]||0.5;
+    const precio = precioUnitario(doc.tipoImpresion, doc.tipoImpresion==='smart_tank' && doc.saturada===true);
     const total  = (doc.paginas * precio).toFixed(2);
-    const label  = LABELS[doc.tipoImpresion]||'B&N';
+    const label  = (LABELS[doc.tipoImpresion]||'B&N') + (doc.tipoImpresion==='smart_tank'&&doc.saturada?' (saturada)':'');
     return `<div class="imp-item">
       <span class="imp-icon">${doc.tipoImpresion==='smart_tank'?'🎨':'🖨️'}</span>
       <div class="imp-info">
@@ -514,9 +649,9 @@ function renderColaFull(){
     return;
   }
   el.innerHTML = colaActual.map(doc=>{
-    const precio = PRECIOS[doc.tipoImpresion]||0.5;
+    const precio = precioUnitario(doc.tipoImpresion, doc.tipoImpresion==='smart_tank' && doc.saturada===true);
     const total  = (doc.paginas * precio).toFixed(2);
-    const label  = LABELS[doc.tipoImpresion]||'B&N';
+    const label  = (LABELS[doc.tipoImpresion]||'B&N') + (doc.tipoImpresion==='smart_tank'&&doc.saturada?' (saturada)':'');
     const fecha  = doc.fecha?.toDate ? doc.fecha.toDate().toLocaleString('es-MX') : '—';
     const badgeEstado = '<span class="badge bpend">⏳ Pendiente</span>';
     const accionPrincipal = `<button class="btn bi bsm wf" style="justify-content:center"
@@ -1182,8 +1317,8 @@ window.selTipo = (el, tipo) => {
   document.querySelectorAll('#tipo-grid .tipo-card').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
   tipoImpAlumno = tipo;
-  actualizarCostoAlumno();
-  document.getElementById('alumno-tipo-label').textContent = tipo==='laser_bn'?'B&N':'Color';
+  recalcularSaturacion();
+  document.getElementById('alumno-tipo-label').textContent = etiquetaTipoAlumno();
 };
 
 document.getElementById('input-archivo')?.addEventListener('change', async (e) => {
@@ -1228,6 +1363,24 @@ document.getElementById('input-archivo')?.addEventListener('change', async (e) =
       const pdf = await pdfjsLib.getDocument(arr).promise;
       document.getElementById('alumno-pags').textContent = pdf.numPages;
       document.getElementById('pags-info').style.display = 'flex';
+      // Detección de saturación: renderiza la página 1 y mide la tinta
+      try {
+        const page = await pdf.getPage(1);
+        const vp = page.getViewport({ scale: 0.35 });
+        const c = document.createElement('canvas');
+        c.width  = Math.max(1, Math.ceil(vp.width));
+        c.height = Math.max(1, Math.ceil(vp.height));
+        const cx = c.getContext('2d');
+        cx.fillStyle = '#ffffff';
+        cx.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: cx, viewport: vp, background: '#ffffff' }).promise;
+        const r = analizarCoberturaCanvas(c);
+        saturacionAlumno = (r && r.densidad !== undefined)
+          ? { cobertura: r.densidad, colorPct: r.colorPct, saturada: r.densidad >= UMBRAL_SATURACION }
+          : { cobertura:0, colorPct:0, saturada:false };
+      } catch(err){
+        saturacionAlumno = { cobertura:0, colorPct:0, saturada:false };
+      }
       actualizarCostoAlumno(pdf.numPages);
     } catch(e){ toast('Error al leer PDF: '+e.message,'er'); }
   };
@@ -1236,10 +1389,14 @@ document.getElementById('input-archivo')?.addEventListener('change', async (e) =
 
 function actualizarCostoAlumno(pags){
   const n = pags || parseInt(document.getElementById('alumno-pags').textContent)||0;
-  const c = (n * PRECIOS[tipoImpAlumno]).toFixed(2);
+  const pu = precioUnitario(tipoImpAlumno, saturacionAlumno.saturada);
+  const c = (n * pu).toFixed(2);
   document.getElementById('alumno-total').textContent = `$${c}`;
+  const lblTipo = document.getElementById('alumno-tipo-label');
+  if(lblTipo) lblTipo.textContent = etiquetaTipoAlumno();
+  const extraSat = (tipoImpAlumno==='smart_tank' && saturacionAlumno.saturada) ? ' · color saturado 🔥' : '';
   document.getElementById('alumno-cost-sub').textContent =
-    n>0 ? `${n} página${n!==1?'s':''} × $${PRECIOS[tipoImpAlumno].toFixed(2)}` : 'Seleccione un archivo';
+    n>0 ? `${n} página${n!==1?'s':''} × $${pu.toFixed(2)}${extraSat}` : 'Seleccione un archivo';
 }
 
 window.enviarArchivo = async () => {
@@ -1295,7 +1452,8 @@ window.enviarArchivo = async () => {
 
   try {
     btn.textContent = '☁️ Guardando en la nube…';
-    const ok = await enviarDocumentoNube({ usuario, archivo: archivoFinal, paginas, tipoImpresion:tipoImpAlumno });
+    const esSaturada = tipoImpAlumno==='smart_tank' && !!saturacionAlumno.saturada;
+    const ok = await enviarDocumentoNube({ usuario, archivo: archivoFinal, paginas, tipoImpresion:tipoImpAlumno, saturada: esSaturada });
     btn.disabled=false; btn.innerHTML='📤 Enviar al Profr. Cecilio';
     if(ok){ document.getElementById('ov-exito').classList.add('on'); }
   } catch(err) {
@@ -1347,6 +1505,7 @@ function mostrarPreviewImagen(file) {
       // 1 imagen = 1 hoja
       document.getElementById('alumno-pags').textContent = '1';
       document.getElementById('pags-info').style.display = 'flex';
+      recalcularSaturacionImagen();
       actualizarCostoAlumno(1);
     };
     img.src = e.target.result;
@@ -1380,6 +1539,8 @@ window.rotarImagenPreview = (deg) => {
   imagenRotation = (imagenRotation + deg + 360) % 360;
   const canvas = document.getElementById('img-preview-canvas');
   dibujarImagenEnCanvas(canvas, imagenActual, imagenRotation);
+  recalcularSaturacionImagen();
+  actualizarCostoAlumno();
 };
 
 window.aplicarOrientacionImagen = () => {
@@ -1389,6 +1550,8 @@ window.aplicarOrientacionImagen = () => {
   else if (sel === 'landscape') imagenRotation = 90;
   const canvas = document.getElementById('img-preview-canvas');
   dibujarImagenEnCanvas(canvas, imagenActual, imagenRotation);
+  recalcularSaturacionImagen();
+  actualizarCostoAlumno();
 };
 
 async function renderImagenAPdf(img, rotation, maxDim, calidad, margenPt = 36) {
@@ -1545,6 +1708,7 @@ function ocultarPreviewImagen() {
   imagenRotation = 0;
   imagenOriginalSrc = null;
   multiImagenes = [];
+  saturacionAlumno = { cobertura:0, colorPct:0, saturada:false };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1564,7 +1728,9 @@ async function cargarMultiImagenes(files){
         i.onerror = () => rej(new Error('imagen no válida'));
         i.src = url;
       });
-      items.push({ file: f, img, sel: true, url });
+      const an = analizarImagen(img, 0);
+      items.push({ file: f, img, sel: true, url,
+        densidad: an ? an.densidad : 0, colorPct: an ? an.colorPct : 0 });
     } catch(err){
       toast(`No se pudo leer "${f.name}"`,'wa');
     }
@@ -1602,7 +1768,12 @@ window.toggleMultiImg = (i) => {
 };
 
 window.cambiarPorHoja = () => { actualizarMulti(); };
-window.cambiarMargenImagen = (v) => { margenImagen = v; };
+window.cambiarMargenImagen = (v) => {
+  margenImagen = v;
+  if(imagenActual) recalcularSaturacionImagen();
+  else if(multiImagenes.length) recalcularSaturacionMulti();
+  actualizarCostoAlumno();
+};
 
 function multiSeleccionadas(){ return multiImagenes.filter(m => m.sel); }
 
@@ -1617,6 +1788,7 @@ function actualizarMulti(){
   const nombre = document.getElementById('up-filename');
   if(nombre) nombre.textContent = n ? `${n} imagen${n!==1?'es':''} · ${pags} hoja${pags!==1?'s':''} (${por} por hoja)` : '0 imágenes seleccionadas';
   document.getElementById('alumno-pags').textContent = pags;
+  recalcularSaturacionMulti();
   actualizarCostoAlumno(pags);
 }
 
@@ -1692,6 +1864,7 @@ window.adminImagenSeleccionada = (input) => {
       adminImagenRotation = 0;
       const canvas = document.getElementById('admin-img-preview-canvas');
       dibujarImagenEnCanvas(canvas, img, 0);
+      reevaluarAdminImagen();
       document.getElementById('admin-img-preview-wrap').style.display = 'block';
       document.getElementById('admin-img-orientacion').value = 'auto';
     };
@@ -1705,6 +1878,7 @@ window.adminRotarImagen = (deg) => {
   adminImagenRotation = (adminImagenRotation + deg + 360) % 360;
   const canvas = document.getElementById('admin-img-preview-canvas');
   dibujarImagenEnCanvas(canvas, adminImagenActual, adminImagenRotation);
+  reevaluarAdminImagen();
 };
 
 window.adminAplicarOrientacion = () => {
@@ -1714,13 +1888,21 @@ window.adminAplicarOrientacion = () => {
   else if (sel === 'landscape') adminImagenRotation = 90;
   const canvas = document.getElementById('admin-img-preview-canvas');
   dibujarImagenEnCanvas(canvas, adminImagenActual, adminImagenRotation);
+  reevaluarAdminImagen();
 };
 
 window.adminActualizarPrecioImagen = () => {
   const tipo = document.getElementById('im-tipo-img')?.value || 'laser_bn';
-  const precio = PRECIOS[tipo] || 0.5;
+  const precio = precioUnitario(tipo, adminImgSaturacion?.saturada);
   const el = document.getElementById('im-total-img');
   if (el) el.textContent = `$${precio.toFixed(2)}`;
+  const det = document.getElementById('im-img-detect');
+  if (det) {
+    if (tipo !== 'smart_tank' || !adminImgSaturacion) det.textContent = '';
+    else det.textContent = adminImgSaturacion.saturada
+      ? `🎯 Imagen saturada de color (${Math.round(adminImgSaturacion.cobertura*100)}% de tinta) — $3.00`
+      : `Tinta ${Math.round(adminImgSaturacion.cobertura*100)}% de la hoja — precio normal $2.00`;
+  }
 };
 
 window.agregarImpresionImagenAdmin = async () => {
@@ -1732,8 +1914,8 @@ window.agregarImpresionImagenAdmin = async () => {
   const btnAgregar = document.getElementById('btn-agregar-imp-manual');
   const tipo = document.getElementById('im-tipo-img')?.value || 'laser_bn';
   const usuario = document.getElementById('im-usuario-img')?.value.trim() || 'Presencial';
-  const label = LABELS[tipo] || 'B&N';
-  const precio = PRECIOS[tipo] || 0.5;
+  const label = (LABELS[tipo] || 'B&N') + (tipo==='smart_tank' && adminImgSaturacion?.saturada ? ' (saturada)' : '');
+  const precio = precioUnitario(tipo, adminImgSaturacion?.saturada);
 
   btnAgregar.disabled = true;
   btnAgregar.innerHTML = '⏳ Convirtiendo a PDF…';
@@ -1753,6 +1935,7 @@ window.agregarImpresionImagenAdmin = async () => {
         archivo: pdfFile,
         paginas: 1,
         tipoImpresion: tipo,
+        saturada: tipo==='smart_tank' && !!adminImgSaturacion?.saturada,
       });
     })();
 
@@ -1798,6 +1981,9 @@ window.abrirImpresionManual = () => {
   // Limpiar estado de imagen
   adminImagenActual = null;
   adminImagenRotation = 0;
+  adminImgSaturacion = null;
+  const detEl = document.getElementById('im-img-detect');
+  if (detEl) detEl.textContent = '';
   const imgWrap = document.getElementById('admin-img-preview-wrap');
   if (imgWrap) imgWrap.style.display = 'none';
   const imgInput = document.getElementById('admin-input-imagen');
@@ -1809,7 +1995,10 @@ window.abrirImpresionManual = () => {
 window.calcularManual = () => {
   const pags  = parseInt(document.getElementById('im-paginas')?.value)||0;
   const tipo  = document.getElementById('im-tipo')?.value||'laser_bn';
-  const total = pags*(PRECIOS[tipo]||0.5);
+  const satWrap = document.getElementById('im-sat-wrap');
+  if(satWrap) satWrap.style.display = tipo==='smart_tank' ? 'block' : 'none';
+  const saturada = tipo==='smart_tank' && !!document.getElementById('im-sat')?.checked;
+  const total = pags*precioUnitario(tipo, saturada);
   const el    = document.getElementById('im-total');
   if(el) el.textContent=`$${total.toFixed(2)}`;
 };
@@ -1819,8 +2008,9 @@ window.agregarImpresionManual = () => {
   const tipo    = document.getElementById('im-tipo').value;
   const usuario = document.getElementById('im-usuario').value.trim()||'Presencial';
   if(pags<=0){ toast('Ingrese número de páginas','er'); return; }
-  const precio  = pags*(PRECIOS[tipo]||0.5);
-  const label   = LABELS[tipo]||'B&N';
+  const saturada = tipo==='smart_tank' && !!document.getElementById('im-sat')?.checked;
+  const precio  = pags*precioUnitario(tipo, saturada);
+  const label   = (LABELS[tipo]||'B&N') + (saturada?' (saturada)':'');
   carrito.push({
     id:'manual-'+Date.now(),
     nombre:`🖨️ Impresión ${pags} págs (${label})`,

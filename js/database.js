@@ -130,3 +130,40 @@ export const obtenerProductoPorID = async (id) => {
     const docSnap = await getDoc(doc(db, "inventario", id));
     return docSnap.exists() ? docSnap.data() : null;
 };
+
+// ─── Pedidos de alumnos (carrito con escaneo QR) ───────────────────
+// Se guardan en la MISMA colección cola_impresion con el marcador
+// pedidoAlumno:true. Las reglas desplegadas no permiten colecciones
+// nuevas a clientes sin autenticación, pero cola_impresion acepta
+// campos extra (hasAll) y update/delete son abiertos. Los renders de
+// la cola filtran estos documentos y los muestran como pedidos.
+export const enviarPedidoAlumnoDB = async ({ usuario, items, total }) => {
+    return await addDoc(collection(db, 'cola_impresion'), {
+        usuario,
+        archivo: 'PEDIDO · ' + usuario,
+        archivoURL: '',
+        archivoBase64: '',
+        archivoTipo: 'application/json',
+        archivoBytes: 0,
+        paginas: 1,
+        tipoImpresion: 'laser_bn',
+        saturada: false,
+        pedidoAlumno: true,
+        items,
+        total,
+        fecha: serverTimestamp(),
+        estatus: 'pendiente',
+    });
+};
+
+// Actualiza campos de un documento de la cola (estatus del pedido, etc.)
+export const actualizarDocCola = async (id, datos) => {
+    return await updateDoc(doc(db, 'cola_impresion', id), datos);
+};
+
+// Escucha SOLO los pedidos de alumnos (documentos ligeros, sin PDFs
+// en base64 — ideal para el celular del alumno).
+export const escucharPedidosAlumnoDB = (callback) => {
+    const q = query(collection(db, "cola_impresion"), where("pedidoAlumno", "==", true));
+    return onSnapshot(q, callback);
+};

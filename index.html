@@ -232,6 +232,17 @@ tbody tr:hover{background:var(--paper)}
 .qrs-it.sel{border-color:var(--accent);background:var(--grl)}
 .qrs-it input{accent-color:var(--accent);flex-shrink:0}
 
+/* TIENDA ALUMNO (carrito con QR) */
+.al-tabs{display:flex;gap:8px;margin-bottom:16px}
+.al-tab{flex:1;padding:11px 8px;border-radius:12px;border:1.5px solid var(--paper3);background:var(--paper2);color:var(--ink2);font-weight:700;font-size:.84rem;cursor:pointer;font-family:var(--f);transition:all .15s}
+.al-tab.on{background:var(--indigo);border-color:var(--indigo);color:#fff}
+.al-lista{display:grid;gap:5px;max-height:210px;overflow-y:auto;margin-top:8px}
+.al-it{display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--paper);border:1.5px solid var(--paper3);border-radius:var(--rs);cursor:pointer;text-align:left;width:100%;font-family:var(--f)}
+
+/* PEDIDOS DE ALUMNOS (admin) */
+.ped-it{background:#fff;border:1.5px solid var(--paper3);border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
+.ped-it.en-cobro{opacity:.6;border-style:dashed}
+
 /* STOCK BAR */
 .sbar{height:5px;background:var(--paper3);border-radius:99px;overflow:hidden;margin-top:3px}
 .sbar-f{height:100%;border-radius:99px;background:var(--green)}
@@ -331,6 +342,10 @@ tbody tr:hover{background:var(--paper)}
       <span style="font-size:.78rem;color:#5a7184">Cola de impresión:</span>
       <span class="cola-badge" id="cola-badge">0</span>
       <span id="cola-count" style="font-size:.78rem;color:#8fa3b1">0 pendientes</span>
+      <span style="font-size:.78rem;color:#5a7184">·</span>
+      <span style="font-size:.78rem;color:#5a7184">Pedidos:</span>
+      <span class="cola-badge" id="ped-badge" style="background:var(--indigo)">0</span>
+      <span id="ped-count" style="font-size:.78rem;color:#8fa3b1">0 pedidos</span>
     </div>
     <div class="topbar-user">
       <span id="admin-nombre" style="font-size:.8rem;color:#8fa3b1"></span>
@@ -343,6 +358,7 @@ tbody tr:hover{background:var(--paper)}
     <button class="nav-btn on" onclick="go('dashboard')"><span class="ic">📊</span> Dashboard</button>
     <button class="nav-btn" onclick="go('venta')">
       <span class="ic">🛒</span> Nueva Venta
+      <span class="badge-count" id="nav-ped-badge" style="display:none;background:var(--indigo)">0</span>
     </button>
     <div class="nav-sec">Impresiones</div>
     <button class="nav-btn" onclick="go('cola')">
@@ -362,7 +378,7 @@ tbody tr:hover{background:var(--paper)}
   <!-- BOTTOM NAV MÓVIL -->
   <nav class="bot-nav" id="bot-nav">
     <button class="bni on" id="bn-dashboard" onclick="go('dashboard')"><span class="bic">📊</span>Dashboard</button>
-    <button class="bni" id="bn-venta" onclick="go('venta')"><span class="bic">🛒</span>Venta</button>
+    <button class="bni" id="bn-venta" onclick="go('venta')"><span class="bic">🛒</span>Venta<span class="bnb" id="bn-venta-badge" style="background:var(--indigo)">0</span></button>
     <button class="bni" id="bn-cola" onclick="go('cola')"><span class="bic">🖨️</span>Cola<span class="bnb" id="bn-cola-badge">0</span></button>
     <button class="bni" id="bn-productos" onclick="go('productos')"><span class="bic">📦</span>Inventario</button>
     <button class="bni" id="bn-more" onclick="toggleBotMore()"><span class="bic">☰</span>Más</button>
@@ -404,6 +420,18 @@ tbody tr:hover{background:var(--paper)}
   <div class="psub">Agregue productos del inventario o impresiones pendientes al carrito</div>
   <div class="vlay">
     <div>
+      <!-- Pedidos de alumnos (escanearon QR en la tienda) -->
+      <div class="card" style="margin-bottom:14px">
+        <div class="cbar">
+          <span class="ctitle">🛒 Pedidos de alumnos</span>
+          <span class="badge bind" id="ped-venta-count">0</span>
+          <div class="sp"></div>
+        </div>
+        <div style="padding:12px 14px;max-height:300px;overflow-y:auto" id="pedidos-list">
+          <div class="empty">Sin pedidos de alumnos</div>
+        </div>
+      </div>
+
       <!-- Cola impresiones rápida -->
       <div class="card" style="margin-bottom:14px">
         <div class="cbar">
@@ -612,9 +640,14 @@ tbody tr:hover{background:var(--paper)}
 <div id="scr-alumno" class="scr">
   <div class="acard">
     <div class="acard-header">
-      <h2>📄 Enviar trabajo para imprimir</h2>
+      <h2>🏪 Papelería e Impresiones</h2>
       <p id="alumno-saludo">Bienvenido</p>
     </div>
+<div class="al-tabs">
+  <button class="al-tab on" id="altab-imp" onclick="alumnoTab('imp')">📄 Imprimir</button>
+  <button class="al-tab" id="altab-tienda" onclick="alumnoTab('tienda')">🛒 Comprar productos</button>
+</div>
+<div id="alumno-imp">
 <!-- Tipo de impresión -->
 <div class="fld" style="margin-bottom:14px">
   <label>Tipo de impresión</label>
@@ -705,6 +738,32 @@ tbody tr:hover{background:var(--paper)}
 <button class="btn bi wf" style="font-size:.95rem;padding:14px" id="btn-enviar" onclick="enviarArchivo()">
   📤 Enviar al Profr. Cecilio
 </button>
+</div><!-- /alumno-imp -->
+
+<!-- ══════════ TIENDA DEL ALUMNO (carrito con QR) ══════════ -->
+<div id="alumno-tienda" style="display:none">
+  <div class="fld" style="margin-bottom:12px">
+    <label>Escanea el QR de los productos del mostrador</label>
+    <button class="btn bi wf" style="font-size:.95rem;padding:14px" onclick="openScanner('alumno')">📷 Escanear producto</button>
+  </div>
+  <div class="fld" style="margin-bottom:12px">
+    <label>¿Sin cámara? Busca el producto por nombre</label>
+    <div class="sb"><input type="text" id="al-buscar" placeholder="Buscar producto…"></div>
+    <div class="al-lista" id="al-lista"></div>
+  </div>
+  <div class="fld" style="margin-bottom:0">
+    <label>🛒 Tu pedido</label>
+    <div id="al-cart" style="display:grid;gap:6px;margin-top:8px"></div>
+  </div>
+  <div class="cost-display" style="margin-top:12px">
+    <div class="cost-label">Total de tu pedido</div>
+    <div class="cost-val" id="al-total">$0.00</div>
+    <div class="cost-sub" id="al-cart-sub">Escanea o busca productos para agregarlos</div>
+  </div>
+  <button class="btn bp wf" style="font-size:.95rem;padding:14px;margin-top:12px" id="btn-pedido" onclick="enviarPedidoAlumno()">📤 Enviar pedido al administrador</button>
+  <p style="font-size:.74rem;color:var(--ink3);margin-top:8px;text-align:center">El administrador verá tu pedido en la caja para cobrarte.</p>
+  <div id="al-mispedidos" style="margin-top:6px"></div>
+</div><!-- /alumno-tienda -->
 <button onclick="cerrarSesion()" style="display:block;width:100%;margin-top:10px;background:none;border:none;color:var(--ink3);font-size:.77rem;cursor:pointer;font-family:var(--f)">
   ← Salir / Cambiar usuario
 </button>
@@ -787,6 +846,44 @@ tbody tr:hover{background:var(--paper)}
     <div class="mf">
       <button class="btn bs" id="qr-switch-btn" onclick="toggleScannerCamera()">🔄 Cámara frontal</button>
       <button class="btn bs" onclick="closeScanner()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cantidad (alumno: escaneo → cantidad → al pedido) -->
+
+<div class="ov" id="ov-qty-al">
+  <div class="modal">
+    <div class="mh"><h2>🛒 Agregar al pedido</h2><button class="xbtn" onclick="cerrarQtyAlumno()">✕</button></div>
+    <div class="mb" style="text-align:center">
+      <img id="qty-foto" src="" alt="" style="display:none;width:110px;height:110px;object-fit:cover;border-radius:12px;margin:0 auto 10px;border:1.5px solid var(--paper3)">
+      <div id="qty-nombre" style="font-weight:800;font-size:1.05rem"></div>
+      <div id="qty-precio" style="color:var(--accent);font-weight:700;margin-top:2px"></div>
+      <div id="qty-stock" style="font-size:.75rem;color:var(--ink3);margin-top:2px"></div>
+      <div id="qty-encarrito" style="font-size:.75rem;color:var(--indigo);margin-top:2px;min-height:1em"></div>
+      <div class="qb" style="justify-content:center;margin-top:12px;gap:10px">
+        <button class="qq" style="width:38px;height:38px;font-size:1.2rem" onclick="qtyAlumnoStep(-1)">−</button>
+        <input id="qty-num" type="number" min="1" value="1" style="width:64px;text-align:center;font-size:1.3rem;font-weight:800;padding:8px;border:1.5px solid var(--paper3);border-radius:var(--rs);font-family:var(--f)" oninput="qtyAlumnoInput()">
+        <button class="qq" style="width:38px;height:38px;font-size:1.2rem" onclick="qtyAlumnoStep(1)">+</button>
+      </div>
+      <div id="qty-total" style="margin-top:10px;font-size:.9rem;color:var(--ink2)">Total: <b>$0.00</b></div>
+    </div>
+    <div class="mf">
+      <button class="btn bs" onclick="cerrarQtyAlumno()">Cancelar</button>
+      <button class="btn bp" onclick="confirmarQtyAlumno()">➕ Agregar al pedido</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Éxito Pedido Alumno -->
+
+<div class="ov" id="ov-exito-ped">
+  <div class="modal">
+    <div class="mb" style="text-align:center;padding:36px">
+      <div style="font-size:3rem">🛒</div>
+      <h2 style="margin-top:12px;font-size:1.2rem;font-weight:800">¡Pedido enviado!</h2>
+      <p style="color:var(--ink3);font-size:.84rem;margin-top:6px">El administrador lo verá en la caja para cobrarte.<br>Pasa por tus productos al pagar.</p>
+      <button class="btn bi wf" style="margin-top:20px" onclick="closeModal('ov-exito-ped')">Seguir comprando</button>
     </div>
   </div>
 </div>

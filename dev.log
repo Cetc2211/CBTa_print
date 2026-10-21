@@ -1,0 +1,2 @@
+error: Failed to run "server.js" due to:
+ENOEXEC: /home/z/my-project/server.js: Exec format error (posix_spawn())

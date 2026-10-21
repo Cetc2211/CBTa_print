@@ -11,6 +11,9 @@ import {
   guardarNuevoProducto,
   actualizarProducto,
   eliminarRegistro,
+  enviarPedidoAlumnoDB,
+  actualizarDocCola,
+  escucharPedidosAlumnoDB,
 } from "./database.js";
 import { subirFotoProducto, eliminarFotoProducto } from "./database_additions.js";
 
@@ -34,6 +37,11 @@ let multiImagenes  = [];   // [{file,img,sel,url}] modo varias imágenes (alumno
 let margenImagen   = 'normal'; // 'normal' | 'cero' — margen al convertir imagen→PDF
 let saturacionAlumno  = { cobertura:0, colorPct:0, saturada:false }; // detección en el archivo del alumno
 let adminImgSaturacion = null;   // detección en la imagen del flujo admin (tab imagen)
+let carritoAlumno  = [];   // pedido del alumno (tienda con QR)
+let alumnoIniciado = false;
+let scanCtx        = 'caja';  // contexto del escáner: 'caja' | 'alumno'
+let qtyProdId      = null;    // producto abierto en el modal de cantidad (alumno)
+let pedidosAlumno  = [];      // pedidos de alumnos (docs de cola_impresion con pedidoAlumno:true)
 
 // ─── PRECIO UNITARIO + DETECCIÓN DE SATURACIÓN DE TINTA ────────────
 // Saturada = el contenido (foto) lleva tinta en >= UMBRAL_SATURACION de su
@@ -316,6 +324,7 @@ function mostrarAdmin(nombre){
 function mostrarAlumno(nombre){
   showScreen('scr-alumno');
   document.getElementById('alumno-saludo').textContent = `Hola, ${nombre} 👋`;
+  iniciarAlumno(nombre);
 }
 
 window.cerrarSesion = () => {
@@ -342,9 +351,12 @@ function iniciarAdmin(){
   // Cola de impresión — tiempo real desde Firestore
   escucharColaImpresion(snap => {
     colaActual = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    pedidosAlumno = colaActual.filter(d => d.pedidoAlumno);   // pedidos de alumnos (QR)
     actualizarColaBadge();
     renderColaImpresion();
     renderColaVenta();
+    actualizarPedidosBadge();
+    renderPedidosAlumno();
     // Si el admin está viendo la cola, refrescarla en vivo
     if (seccionAdminActiva === 'cola') renderColaFull();
   });
@@ -362,8 +374,12 @@ function iniciarAdmin(){
 }
 
 // ─── Cola badge en sidebar y topbar ────────────────────────────────
+// Solo impresiones: los pedidos de alumnos viven en la misma colección
+// (marcador pedidoAlumno) y se manejan aparte.
+const impresionesActuales = () => colaActual.filter(d => !d.pedidoAlumno);
+
 function actualizarColaBadge(){
-  const n = colaActual.length;
+  const n = impresionesActuales().length;
   const badge = document.getElementById('cola-badge');
   const navBadge = document.getElementById('nav-cola-badge');
   const countEl = document.getElementById('cola-count');
@@ -403,7 +419,7 @@ window.go = (s) => {
   if(s==='historial') renderHist();
   if(s==='stock')     renderStockSelect();
   if(s==='finanzas')  renderFinanzas();
-  if(s==='venta')     { renderProdList(); renderCart(); renderColaVenta(); syncMetodoPagoUI(); }
+  if(s==='venta')     { renderProdList(); renderCart(); renderColaVenta(); renderPedidosAlumno(); syncMetodoPagoUI(); }
   if(s==='cola')      renderColaFull();
 };
 
@@ -612,17 +628,18 @@ window.irAFiadosPendientes = () => {
 function renderColaImpresion(){
   // Para el panel de venta rápida (mini)
   const miniCount = document.getElementById('cola-venta-count');
-  if(miniCount) miniCount.textContent = colaActual.length;
+  if(miniCount) miniCount.textContent = impresionesActuales().length;
 }
 
 function renderColaVenta(){
   const el = document.getElementById('cola-venta-list');
   if(!el) return;
-  if(colaActual.length===0){
+  const imps = impresionesActuales();
+  if(imps.length===0){
     el.innerHTML='<div class="empty">Sin impresiones pendientes</div>';
     return;
   }
-  el.innerHTML = colaActual.map(doc=>{
+  el.innerHTML = imps.map(doc=>{
     const esQR = doc.tipoImpresion==='qr';
     const precio = esQR ? 0 : precioUnitario(doc.tipoImpresion, doc.tipoImpresion==='smart_tank' && doc.saturada===true);
     const total  = (doc.paginas * precio).toFixed(2);
@@ -646,11 +663,12 @@ function renderColaVenta(){
 function renderColaFull(){
   const el = document.getElementById('cola-full-list');
   if(!el) return;
-  if(colaActual.length===0){
+  const imps = impresionesActuales();
+  if(imps.length===0){
     el.innerHTML='<div class="card"><div class="empty">Sin impresiones pendientes 🎉</div></div>';
     return;
   }
-  el.innerHTML = colaActual.map(doc=>{
+  el.innerHTML = imps.map(doc=>{
     const esQR = doc.tipoImpresion==='qr';
     const precio = esQR ? 0 : precioUnitario(doc.tipoImpresion, doc.tipoImpresion==='smart_tank' && doc.saturada===true);
     const total  = (doc.paginas * precio).toFixed(2);
@@ -684,6 +702,109 @@ function renderColaFull(){
     </div>`;
   }).join('');
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// PEDIDOS DE ALUMNOS — aparecen en Nueva Venta para el cobro
+// ═══════════════════════════════════════════════════════════════════
+function actualizarPedidosBadge(){
+  const np = pedidosAlumno.filter(d=>d.estatus==='pendiente').length;
+  const set = (id) => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = np;
+    el.style.display = np>0 ? 'inline-block' : 'none';
+  };
+  set('nav-ped-badge'); set('ped-badge'); set('bn-venta-badge');
+  const cnt = document.getElementById('ped-venta-count');
+  if(cnt) cnt.textContent = np;
+  const tc = document.getElementById('ped-count');
+  if(tc) tc.textContent = `${np} pedido${np!==1?'s':''}`;
+}
+
+function renderPedidosAlumno(){
+  const el = document.getElementById('pedidos-list'); if(!el) return;
+  actualizarPedidosBadge();
+  const activos = pedidosAlumno
+    .filter(d=>d.estatus==='pendiente'||d.estatus==='en_cobro')
+    .sort((a,b)=>(b.fecha?.toDate?.()?.getTime()||0)-(a.fecha?.toDate?.()?.getTime()||0));
+  if(!activos.length){
+    el.innerHTML='<div class="empty">Sin pedidos de alumnos — los pedidos enviados desde la tienda aparecerán aquí</div>';
+    return;
+  }
+  el.innerHTML = activos.map(d=>{
+    const t = d.fecha?.toDate?.();
+    const hace = t ? haceRango(t) : 'ahora';
+    const items = (d.items||[]).map(i=>`${i.nombre} ×${i.qty}`).join(' · ');
+    const enCobro = d.estatus==='en_cobro';
+    const usuarioSeg = String(d.usuario||'').replace(/</g,'&lt;').replace(/'/g,'');
+    return `<div class="ped-it${enCobro?' en-cobro':''}">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <b style="font-size:.9rem">🎒 ${usuarioSeg}</b>
+        <span class="badge ${enCobro?'bind':'bpend'}">${enCobro?'🧾 En el carrito':'⏳ Pendiente'}</span>
+        <div class="sp"></div>
+        <span style="font-size:.72rem;color:var(--ink3)">${hace}</span>
+      </div>
+      <div style="font-size:.78rem;color:var(--ink2);margin-top:6px">${items}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap">
+        <b style="color:var(--accent);font-size:.95rem">${$m(d.total||0)}</b>
+        <div class="sp"></div>
+        ${enCobro
+          ? `<button class="btn bs bsm" onclick="liberarPedido('${d.id}')">↩️ Liberar</button>`
+          : `<button class="btn bp bsm" onclick="cobrarPedido('${d.id}')">🛒 Cobrar</button>
+             <button class="btn br bsm" onclick="rechazarPedido('${d.id}','${usuarioSeg}')">🗑️</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.cobrarPedido = (id) => {
+  const d = pedidosAlumno.find(x=>x.id===id);
+  if(!d){ toast('Pedido no encontrado','er'); return; }
+  if(d.estatus!=='pendiente'){ toast('Ese pedido ya está en el carrito','wa'); return; }
+  let agregados = 0;
+  const avisos = [];
+  for(const it of (d.items||[])){
+    const p = inventario.find(x=>x.id===it.id);
+    const yaEnCarrito = carrito.filter(c=>c.id===it.id && c.tipo==='producto')
+      .reduce((a,c)=>a+(c.qty||0),0);
+    const disp = Math.max(0, (p?.stock||0) - yaEnCarrito);
+    const q = Math.min(Number(it.qty)||1, disp);
+    if(q<=0){ avisos.push(`${it.nombre}: sin stock`); continue; }
+    carrito.push({
+      id: it.id, nombre: it.nombre,
+      precio: (p?.venta ?? it.precio) * q,
+      tipo:'producto', qty:q, pedidoId:id,
+    });
+    if(q < it.qty) avisos.push(`${it.nombre}: quedaban ${disp} de ${it.qty}`);
+    agregados++;
+  }
+  renderCart();
+  if(agregados>0){
+    actualizarDocCola(id,{ estatus:'en_cobro' }).catch(e=>console.error(e));
+    toast(`✓ Pedido de ${d.usuario} agregado al carrito`,'ok');
+  } else {
+    toast('Nada que agregar — sin stock','er');
+  }
+  if(avisos.length) toast('⚠️ '+avisos.join(' · '),'wa');
+};
+
+window.rechazarPedido = async (id, usuario) => {
+  if(!confirm(`¿Rechazar el pedido de ${usuario||'el alumno'}? Desaparecerá de la lista.`)) return;
+  try {
+    await eliminarRegistro('cola_impresion', id);
+    toast('Pedido rechazado','ok');
+  } catch(e){ toast('Error: '+e.message,'er'); }
+};
+
+window.liberarPedido = async (id) => {
+  if(!confirm('¿Devolver el pedido a "pendiente" y quitar sus líneas del carrito?')) return;
+  try {
+    carrito = carrito.filter(c=>c.pedidoId!==id);
+    renderCart();
+    await actualizarDocCola(id,{ estatus:'pendiente' });
+    toast('Pedido liberado','ok');
+  } catch(e){ toast('Error: '+e.message,'er'); }
+};
 
 // ═══════════════════════════════════════════════════════════════════
 // CARRITO — Unifica impresiones + productos
@@ -781,8 +902,20 @@ window.chQty = (i,d) => {
   renderCart();
 };
 
-window.rmCart = (i) => { carrito.splice(i,1); renderCart(); };
-window.limpiarCarrito = () => { carrito=[]; renderCart(); };
+window.rmCart = (i) => {
+  const it = carrito[i];
+  carrito.splice(i,1); renderCart();
+  // Si la línea venía de un pedido de alumno y ya no está en el carrito,
+  // devolver el pedido a "pendiente" para que no se pierda.
+  if(it?.pedidoId && !carrito.some(c=>c.pedidoId===it.pedidoId)){
+    actualizarDocCola(it.pedidoId,{ estatus:'pendiente' }).catch(()=>{});
+  }
+};
+window.limpiarCarrito = () => {
+  const pids = [...new Set(carrito.filter(i=>i.pedidoId).map(i=>i.pedidoId))];
+  carrito=[]; renderCart();
+  pids.forEach(pid=>actualizarDocCola(pid,{ estatus:'pendiente' }).catch(()=>{}));
+};
 
 window.selPago = (btn, met) => {
   document.querySelectorAll('.pbtn').forEach(b=>b.classList.remove('sel'));
@@ -844,6 +977,13 @@ window.confirmarVenta = async () => {
 
     if(esFiado) toast(`📝 Fiado pendiente registrado — ${$m(carrito.reduce((a,i)=>a+i.precio,0))}`, 'wa');
     else toast(`✅ Cobro registrado — ${$m(carrito.reduce((a,i)=>a+i.precio,0))}`, 'ok');
+
+    // Los pedidos de alumnos incluidos en la venta se consumen (se eliminan)
+    const pids = [...new Set(carrito.filter(i=>i.pedidoId).map(i=>i.pedidoId))];
+    for(const pid of pids){
+      try{ await eliminarRegistro('cola_impresion', pid); }catch(e){ console.error(e); }
+    }
+
     carrito=[];
     renderCart();
     if(document.getElementById('v-notas')) document.getElementById('v-notas').value='';
@@ -1463,7 +1603,8 @@ window.toggleScannerCamera = async () => {
   await startCam();
 };
 
-window.openScanner = () => {
+window.openScanner = (ctx = 'caja') => {
+  scanCtx = ctx;
   document.getElementById('ov-scan').classList.add('on');
   document.getElementById('qr-ok').style.display='none';
   startCam();
@@ -1483,8 +1624,13 @@ function scanFrame(){
     if(prod){
       document.getElementById('qr-ok').style.display='block';
       document.getElementById('qr-ok-name').textContent=prod.nombre;
-      clearInterval(scanTimer);
-      setTimeout(()=>{ closeScanner(); addProdToCart(prod.id); },700);
+      clearInterval(scanTimer); scanTimer=null;
+      if(scanCtx==='alumno'){
+        // Flujo tienda del alumno: pedir la CANTIDAD antes de agregar al pedido
+        setTimeout(()=>{ abrirQtyAlumno(prod.id); },450);
+      } else {
+        setTimeout(()=>{ closeScanner(); addProdToCart(prod.id); },700);
+      }
     } else {
       if(document.getElementById('qr-st'))
         document.getElementById('qr-st').textContent='⚠️ ID no encontrado: '+dato;
@@ -1659,6 +1805,238 @@ window.resetAlumno = () => {
   document.getElementById('alumno-cost-sub').textContent='Seleccione un archivo para calcular';
   ocultarPreviewImagen();
 };
+
+// ═══════════════════════════════════════════════════════════════════
+// TIENDA DEL ALUMNO — escaneo QR → cantidad → carrito → pedido al admin
+// Los pedidos se guardan en cola_impresion con pedidoAlumno:true
+// (ver database.js) y el administrador los ve en "Nueva Venta".
+// ═══════════════════════════════════════════════════════════════════
+function iniciarAlumno(nombre){
+  if(!alumnoIniciado){
+    alumnoIniciado = true;
+    // Inventario en vivo (precios y stock reales para el pedido)
+    escucharInventarioDB(snap => {
+      inventario = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderAlLista();
+      renderCarritoAlumno();
+    });
+    // Pedidos propios en vivo (para saber si ya lo están cobrando)
+    escucharPedidosAlumnoDB(snap => {
+      pedidosAlumno = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderMisPedidos();
+    });
+  }
+  // Reanudar el pedido pendiente del mismo alumno (persistencia local)
+  try { carritoAlumno = JSON.parse(localStorage.getItem('carrito_alumno_'+nombre) || '[]') || []; }
+  catch(e){ carritoAlumno = []; }
+  if(!Array.isArray(carritoAlumno)) carritoAlumno = [];
+  renderCarritoAlumno();
+  renderAlLista();
+}
+
+window.alumnoTab = (t) => {
+  document.getElementById('altab-imp')?.classList.toggle('on', t==='imp');
+  document.getElementById('altab-tienda')?.classList.toggle('on', t==='tienda');
+  const imp = document.getElementById('alumno-imp');
+  const tie = document.getElementById('alumno-tienda');
+  if(imp) imp.style.display = t==='imp' ? 'block' : 'none';
+  if(tie) tie.style.display = t==='tienda' ? 'block' : 'none';
+};
+
+// Lista manual por nombre (respaldo cuando la cámara no está disponible)
+window.renderAlLista = () => {
+  const el = document.getElementById('al-lista'); if(!el) return;
+  const q = (document.getElementById('al-buscar')?.value||'').toLowerCase();
+  const f = (q ? inventario.filter(p=>p.nombre?.toLowerCase().includes(q)) : inventario)
+    .filter(p=>(p.stock||0)>0).slice(0,30);
+  el.innerHTML = f.length===0
+    ? '<div class="empty" style="padding:8px">Sin productos disponibles</div>'
+    : f.map(p=>`
+      <button class="al-it" onclick="abrirQtyAlumno('${p.id}')">
+        ${p.foto?`<img src="${p.foto}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:7px;flex-shrink:0">`:'<span style="font-size:1.1rem">📦</span>'}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nombre}</div>
+          <div style="font-size:.7rem;color:var(--ink3)">Stock: ${p.stock||0}</div>
+        </div>
+        <div style="font-size:.85rem;font-weight:700;color:var(--accent)">${$m(p.venta||0)}</div>
+      </button>`).join('');
+};
+
+// ── Modal de cantidad: escaneo → indicar cantidad → enviar al pedido ──
+function abrirQtyAlumno(id){
+  const p = inventario.find(x=>x.id===id);
+  if(!p){ toast('Producto no encontrado','er'); return; }
+  if((p.stock||0)<=0){ toast('Producto sin stock','er'); return; }
+  qtyProdId = id;
+  const enCar = carritoAlumno.find(x=>x.id===id);
+  const num = document.getElementById('qty-num');
+  if(num){ num.value = enCar ? enCar.qty : 1; num.max = p.stock; }
+  const foto = document.getElementById('qty-foto');
+  if(p.foto){ foto.src=p.foto; foto.style.display='block'; } else { foto.style.display='none'; foto.src=''; }
+  document.getElementById('qty-nombre').textContent = p.nombre;
+  document.getElementById('qty-precio').textContent = `${$m(p.venta||0)} c/u`;
+  document.getElementById('qty-stock').textContent = `Stock disponible: ${p.stock}`;
+  document.getElementById('qty-encarrito').textContent = enCar ? `Ya tienes ${enCar.qty} en tu pedido — se actualizará` : '';
+  qtyAlumnoPinta();
+  document.getElementById('ov-qty-al').classList.add('on');
+}
+window.abrirQtyAlumno = abrirQtyAlumno;
+
+function qtyAlumnoVal(){
+  const p = inventario.find(x=>x.id===qtyProdId);
+  let v = parseInt(document.getElementById('qty-num')?.value)||0;
+  if(v<1) v = 1;
+  if(p && v>(p.stock||1)) v = p.stock||1;
+  return v;
+}
+function qtyAlumnoPinta(){
+  const p = inventario.find(x=>x.id===qtyProdId); if(!p) return;
+  const v = qtyAlumnoVal();
+  const el = document.getElementById('qty-total');
+  if(el) el.innerHTML = `Total: <b>${$m((p.venta||0)*v)}</b>`;
+}
+window.qtyAlumnoStep = (d) => {
+  const num = document.getElementById('qty-num'); if(!num) return;
+  let v = qtyAlumnoVal() + d;
+  const p = inventario.find(x=>x.id===qtyProdId);
+  if(p && v > (p.stock||0)){ v = p.stock; toast('Stock máximo: '+p.stock,'wa'); }
+  if(v < 1) v = 1;
+  num.value = v;
+  qtyAlumnoPinta();
+};
+window.qtyAlumnoInput = () => qtyAlumnoPinta();
+
+window.confirmarQtyAlumno = () => {
+  const p = inventario.find(x=>x.id===qtyProdId);
+  if(!p){ cerrarQtyAlumno(); return; }
+  const v = qtyAlumnoVal();
+  const ex = carritoAlumno.find(x=>x.id===p.id);
+  if(ex) ex.qty = v;
+  else carritoAlumno.push({ id:p.id, nombre:p.nombre, precioUnit:p.venta||0, qty:v });
+  guardarCarritoAlumno();
+  renderCarritoAlumno();
+  toast(`✓ ${v} × ${p.nombre.split(' ').slice(0,3).join(' ')} al pedido`,'ok');
+  cerrarQtyAlumno();
+};
+window.cerrarQtyAlumno = () => {
+  closeModal('ov-qty-al');
+  qtyProdId = null;
+  // Si el escáner sigue abierto (flujo alumno), continuar escaneando
+  const ov = document.getElementById('ov-scan');
+  if(ov?.classList.contains('on') && scanCtx==='alumno'){
+    const ok = document.getElementById('qr-ok');
+    if(ok) ok.style.display='none';
+    const st = document.getElementById('qr-st');
+    if(st) st.textContent='Apunte al código QR del producto…';
+    if(!scanTimer) scanTimer = setInterval(scanFrame, 200);
+  }
+};
+
+// ── Carrito visual del alumno ───────────────────────────────────────
+function guardarCarritoAlumno(){
+  const nombre = localStorage.getItem('usuario_cbta') || '';
+  try { localStorage.setItem('carrito_alumno_'+nombre, JSON.stringify(carritoAlumno)); } catch(e){}
+}
+function renderCarritoAlumno(){
+  const el  = document.getElementById('al-cart');
+  const tot = document.getElementById('al-total');
+  const sub = document.getElementById('al-cart-sub');
+  if(!el) return;
+  if(!carritoAlumno.length){
+    el.innerHTML = '<div class="empty" style="padding:14px">Escanea o busca productos para agregarlos</div>';
+    if(tot) tot.textContent = '$0.00';
+    if(sub) sub.textContent = 'Escanea o busca productos para agregarlos';
+    return;
+  }
+  el.innerHTML = carritoAlumno.map((it,i)=>{
+    const p = inventario.find(x=>x.id===it.id);
+    const stockReal = p ? (p.stock||0) : null;
+    const aviso = (stockReal!==null && it.qty>stockReal) ? ` · ⚠️ stock actual: ${stockReal}` : '';
+    return `<div class="al-it" style="cursor:default">
+      ${p?.foto?`<img src="${p.foto}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:7px;flex-shrink:0">`:'<span style="font-size:1.1rem">📦</span>'}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.nombre}</div>
+        <div style="font-size:.72rem;color:var(--ink3)">${$m(it.precioUnit)} c/u${aviso}</div>
+      </div>
+      <div class="qb">
+        <button class="qq" onclick="alQty(${i},-1)">−</button>
+        <span style="min-width:20px;text-align:center;font-size:.82rem;font-weight:700">${it.qty}</span>
+        <button class="qq" onclick="alQty(${i},1)">+</button>
+      </div>
+      <div style="font-size:.85rem;font-weight:700;min-width:52px;text-align:right">${$m(it.precioUnit*it.qty)}</div>
+      <button class="ci-del" onclick="alRm(${i})">✕</button>
+    </div>`;
+  }).join('');
+  const t = carritoAlumno.reduce((a,i)=>a+i.precioUnit*i.qty,0);
+  const n = carritoAlumno.reduce((a,i)=>a+i.qty,0);
+  if(tot) tot.textContent = $m(t);
+  if(sub) sub.textContent = `${n} artículo(s) en tu pedido`;
+}
+window.alQty = (i,d) => {
+  const it = carritoAlumno[i]; if(!it) return;
+  const nq = it.qty + d;
+  if(nq<=0){ alRm(i); return; }
+  const p = inventario.find(x=>x.id===it.id);
+  if(p && nq > (p.stock||0)){ toast('Stock máximo: '+p.stock,'wa'); return; }
+  it.qty = nq; guardarCarritoAlumno(); renderCarritoAlumno();
+};
+window.alRm = (i) => { carritoAlumno.splice(i,1); guardarCarritoAlumno(); renderCarritoAlumno(); };
+
+// ── Enviar el pedido al administrador ───────────────────────────────
+window.enviarPedidoAlumno = async () => {
+  if(!carritoAlumno.length){ toast('Tu pedido está vacío','er'); return; }
+  for(const it of carritoAlumno){
+    const p = inventario.find(x=>x.id===it.id);
+    if(!p){ toast(`"${it.nombre}" ya no está disponible. Quítalo del pedido.`, 'er'); return; }
+    if(it.qty > (p.stock||0)){ toast(`Solo hay ${p.stock} de "${p.nombre}". Ajusta la cantidad.`, 'er'); return; }
+  }
+  const btn = document.getElementById('btn-pedido');
+  const nombre = localStorage.getItem('usuario_cbta') || 'Alumno';
+  if(btn){ btn.disabled = true; btn.textContent = '☁️ Enviando…'; }
+  try {
+    const total = carritoAlumno.reduce((a,i)=>a+i.precioUnit*i.qty,0);
+    await enviarPedidoAlumnoDB({
+      usuario: nombre,
+      items: carritoAlumno.map(i=>({ id:i.id, nombre:i.nombre, precio:i.precioUnit, qty:i.qty })),
+      total,
+    });
+    carritoAlumno = []; guardarCarritoAlumno(); renderCarritoAlumno();
+    if(btn){ btn.disabled=false; btn.textContent='📤 Enviar pedido al administrador'; }
+    document.getElementById('ov-exito-ped')?.classList.add('on');
+  } catch(e){
+    if(btn){ btn.disabled=false; btn.textContent='📤 Enviar pedido al administrador'; }
+    console.error('[enviarPedidoAlumno]', e);
+    toast('Error al enviar el pedido: '+e.message,'er');
+  }
+};
+
+// Estado de los pedidos propios (lo ve el alumno en su pantalla)
+function renderMisPedidos(){
+  const el = document.getElementById('al-mispedidos'); if(!el) return;
+  const nombre = localStorage.getItem('usuario_cbta') || '';
+  const mios = pedidosAlumno
+    .filter(d=>d.usuario===nombre && (d.estatus==='pendiente'||d.estatus==='en_cobro'))
+    .sort((a,b)=>(b.fecha?.toDate?.()?.getTime()||0)-(a.fecha?.toDate?.()?.getTime()||0))
+    .slice(0,4);
+  el.innerHTML = mios.length===0 ? '' :
+    `<label style="font-size:.82rem;font-weight:600;color:var(--ink2);display:block;margin-bottom:6px">Tus pedidos en espera</label>` +
+    mios.map(d=>{
+      const t = d.fecha?.toDate?.();
+      const hace = t ? haceRango(t) : 'enviando…';
+      const enCaja = d.estatus==='en_cobro';
+      return `<div style="background:${enCaja?'var(--il)':'var(--grl)'};border-radius:var(--rs);padding:9px 12px;margin-bottom:6px;font-size:.78rem">
+        ${enCaja?'🧾 <b>En caja — te están cobrando</b>':'⏳ <b>Esperando cobro en caja</b>'} · ${$m(d.total||0)} · ${(d.items||[]).length} producto(s) · ${hace}
+      </div>`;
+    }).join('');
+}
+
+function haceRango(t){
+  const s = Math.floor((Date.now()-t.getTime())/1000);
+  if(s<60) return 'hace un momento';
+  if(s<3600) return 'hace '+Math.floor(s/60)+' min';
+  if(s<86400) return 'hace '+Math.floor(s/3600)+' h';
+  return 'hace '+Math.floor(s/86400)+' d';
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // SOPORTE DE IMAGENES
@@ -1999,6 +2377,7 @@ document.querySelectorAll('.ov').forEach(o=>{
   o.addEventListener('click',e=>{
     if(e.target===o){
       if(o.id==='ov-scan') window.closeScanner();
+      else if(o.id==='ov-qty-al') window.cerrarQtyAlumno();
       else window.closeModal(o.id);
     }
   });
@@ -2219,6 +2598,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Búsqueda en tiempo real inventario
   document.getElementById('p-buscar')?.addEventListener('input', renderProds);
   document.getElementById('v-buscar')?.addEventListener('input', renderProdList);
+
+  // Tienda del alumno: búsqueda manual de productos
+  document.getElementById('al-buscar')?.addEventListener('input', renderAlLista);
 
   // QR masivo: búsqueda y recálculo de vista previa en vivo
   document.getElementById('qrs-buscar')?.addEventListener('input', renderQrsLista);

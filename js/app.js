@@ -420,7 +420,7 @@ window.go = (s) => {
   if(s==='stock')     renderStockSelect();
   if(s==='finanzas')  renderFinanzas();
   if(s==='venta')     { renderProdList(); renderCart(); renderColaVenta(); renderPedidosAlumno(); syncMetodoPagoUI(); }
-  if(s==='cola')      renderColaFull();
+  if(s==='cola')      { renderColaFull(); renderPedidosAlumno(); }
 };
 
 window.toggleBotMore = () => {
@@ -714,7 +714,7 @@ function actualizarPedidosBadge(){
     el.textContent = np;
     el.style.display = np>0 ? 'inline-block' : 'none';
   };
-  set('nav-ped-badge'); set('ped-badge'); set('bn-venta-badge');
+  set('nav-ped-badge'); set('ped-badge'); set('bn-venta-badge'); set('ped-cola-count');
   const cnt = document.getElementById('ped-venta-count');
   if(cnt) cnt.textContent = np;
   const tc = document.getElementById('ped-count');
@@ -722,16 +722,13 @@ function actualizarPedidosBadge(){
 }
 
 function renderPedidosAlumno(){
-  const el = document.getElementById('pedidos-list'); if(!el) return;
   actualizarPedidosBadge();
   const activos = pedidosAlumno
     .filter(d=>d.estatus==='pendiente'||d.estatus==='en_cobro')
     .sort((a,b)=>(b.fecha?.toDate?.()?.getTime()||0)-(a.fecha?.toDate?.()?.getTime()||0));
-  if(!activos.length){
-    el.innerHTML='<div class="empty">Sin pedidos de alumnos — los pedidos enviados desde la tienda aparecerán aquí</div>';
-    return;
-  }
-  el.innerHTML = activos.map(d=>{
+  const html = !activos.length
+    ? '<div class="empty">Sin pedidos de alumnos — los pedidos enviados desde la tienda aparecerán aquí</div>'
+    : activos.map(d=>{
     const t = d.fecha?.toDate?.();
     const hace = t ? haceRango(t) : 'ahora';
     const items = (d.items||[]).map(i=>`${i.nombre} ×${i.qty}`).join(' · ');
@@ -755,6 +752,11 @@ function renderPedidosAlumno(){
       </div>
     </div>`;
   }).join('');
+  // Se pinta en Nueva Venta Y en la Cola de Impresión (mismo contenido)
+  for(const elId of ['pedidos-list','pedidos-cola-list']){
+    const el = document.getElementById(elId);
+    if(el) el.innerHTML = html;
+  }
 }
 
 window.cobrarPedido = (id) => {
@@ -773,7 +775,7 @@ window.cobrarPedido = (id) => {
     carrito.push({
       id: it.id, nombre: it.nombre,
       precio: (p?.venta ?? it.precio) * q,
-      tipo:'producto', qty:q, pedidoId:id,
+      tipo:'producto', qty:q, pedidoId:id, pedidoUsuario:d.usuario,
     });
     if(q < it.qty) avisos.push(`${it.nombre}: quedaban ${disp} de ${it.qty}`);
     agregados++;
@@ -781,7 +783,9 @@ window.cobrarPedido = (id) => {
   renderCart();
   if(agregados>0){
     actualizarDocCola(id,{ estatus:'en_cobro' }).catch(e=>console.error(e));
-    toast(`✓ Pedido de ${d.usuario} agregado al carrito`,'ok');
+    toast(`✓ Pedido de ${d.usuario} agregado al carrito — ${$m(d.total||0)}`,'ok');
+    // Llevar al admin al carrito para que vea la lista y el total real del pedido
+    if(seccionAdminActiva!=='venta') go('venta');
   } else {
     toast('Nada que agregar — sin stock','er');
   }
@@ -810,6 +814,16 @@ window.liberarPedido = async (id) => {
 // CARRITO — Unifica impresiones + productos
 // ═══════════════════════════════════════════════════════════════════
 window.addImpToCart = (id, nombre, precio, usuario, paginas, label) => {
+  // ── Red de seguridad ──
+  // Un pedido de alumno NUNCA se cobra como impresión B/N: si un botón viejo
+  // (JavaScript en caché) manda el doc del pedido aquí, se carga el pedido
+  // real con sus productos y su total.
+  const doc = colaActual.find(x=>x.id===id);
+  if(doc && doc.pedidoAlumno){ window.cobrarPedido(id); return; }
+  if(doc && doc.tipoImpresion==='qr'){
+    toast('🏷️ Las etiquetas QR son uso interno — no se cobran','wa');
+    return;
+  }
   carrito.push({
     id, nombre: `🖨️ ${nombre} (${paginas} págs)`,
     precio: parseFloat(precio), tipo: 'impresion',
@@ -871,7 +885,7 @@ function renderCart(){
     return `<div class="ci">
       <div class="ci-info">
         <div class="ci-name">${item.nombre}</div>
-        <div class="ci-sub">${item.tipo==='impresion'?'Servicio de impresión':'Producto'}</div>
+        <div class="ci-sub">${item.tipo==='impresion'?'Servicio de impresión':(item.pedidoUsuario?`🛒 Pedido de ${item.pedidoUsuario}`:'Producto')}</div>
       </div>
       ${item.tipo==='producto'?`
         <div class="qb">

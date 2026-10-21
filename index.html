@@ -12,6 +12,22 @@
 <meta name="apple-mobile-web-app-title" content="CBTa 130">
 <meta name="theme-color" content="#0f1923">
 <title>CBTa 130 — POS Pro</title>
+<script>
+/* Cache-busting: al detectar un despliegue nuevo fuerza UNA recarga única,
+   de modo que ningún equipo quede atrapado con JavaScript viejo en caché
+   (causa de pedidos cobrados como impresión B/N de $1.00).
+   ⚠️ Subir CBTA_VER en CADA release que toque js/ o index.html. */
+(function(){
+  var V='2026.10.22-pedidos1';
+  try{
+    var cur=localStorage.getItem('cbta_ver');
+    if(cur!==V){
+      localStorage.setItem('cbta_ver',V);
+      if(cur!==null && cur!==undefined) location.reload();
+    }
+  }catch(e){}
+})();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -503,7 +519,15 @@ tbody tr:hover{background:var(--paper)}
 <!-- COLA IMPRESION -->
 <section class="sec" id="s-cola">
   <div class="ptitle">🖨️ Cola de Impresión</div>
-  <div class="psub">Documentos enviados por alumnos esperando impresión y cobro</div>
+  <div class="psub">Impresiones y pedidos de alumnos esperando impresión y cobro</div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="cbar">
+      <span class="ctitle">🛒 Pedidos de alumnos (tienda)</span>
+      <span class="badge bind" id="ped-cola-count">0</span>
+      <div class="sp"></div>
+    </div>
+    <div style="padding:12px 14px;max-height:340px;overflow-y:auto" id="pedidos-cola-list"></div>
+  </div>
   <div id="cola-full-list"></div>
 </section>
 

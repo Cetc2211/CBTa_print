@@ -1046,6 +1046,150 @@ window.printQR = () => {
   w.document.close();
 };
 
+// ═══════════════════════════════════════════════════════════════════
+// IMPRESIÓN MASIVA DE CÓDIGOS QR — hojas carta para recortar
+// ═══════════════════════════════════════════════════════════════════
+// Tamaños de etiqueta (mm): qr=código, cw/ch=celda, px=calidad quickchart,
+// f1/f2=tipografía nombre/precio. cols×rows caben en carta con margen 6mm.
+const TAMS_QR = {
+  chica  : { qr:20, cw:26, ch:34, cols:7, rows:7, px:220, f1:6.5, f2:8.5  },
+  mediana: { qr:27, cw:33, ch:44, cols:5, rows:5, px:300, f1:8,   f2:10.5 },
+  grande : { qr:38, cw:46, ch:60, cols:4, rows:4, px:420, f1:10,  f2:13   },
+};
+const qrSel = new Set();
+
+window.abrirQRMasivo = () => {
+  if(!inventario.length){ toast('No hay productos en el inventario','er'); return; }
+  qrSel.clear();
+  inventario.forEach(p=>qrSel.add(p.id));
+  const b=document.getElementById('qrs-buscar'); if(b) b.value='';
+  renderQrsLista();
+  document.getElementById('ov-qrs').classList.add('on');
+};
+
+function renderQrsLista(){
+  const q=(document.getElementById('qrs-buscar')?.value||'').toLowerCase();
+  const f=q?inventario.filter(p=>p.nombre?.toLowerCase().includes(q)||p.id?.toLowerCase().includes(q)):inventario;
+  const el=document.getElementById('qrs-lista');
+  if(!el) return;
+  el.innerHTML = f.length===0
+    ? '<div style="grid-column:1/-1;color:var(--ink3);font-size:.8rem;text-align:center;padding:8px">Sin resultados</div>'
+    : f.map(p=>`
+      <label class="qrs-it ${qrSel.has(p.id)?'sel':''}">
+        <input type="checkbox" ${qrSel.has(p.id)?'checked':''} onchange="qrsToggle('${p.id}')">
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nombre}</span>
+        <b style="color:var(--accent);flex-shrink:0">${$m(p.venta||0)}</b>
+      </label>`).join('');
+  renderQrsPreview();
+}
+
+window.qrsToggle = (id) => { qrSel.has(id)?qrSel.delete(id):qrSel.add(id); renderQrsLista(); };
+window.qrsTodos  = (on) => { qrSel.clear(); if(on) inventario.forEach(p=>qrSel.add(p.id)); renderQrsLista(); };
+
+function qrsOpciones(){
+  return {
+    tam   : document.getElementById('qrs-tam')?.value   || 'mediana',
+    copias: parseInt(document.getElementById('qrs-copias')?.value) || 1,
+    nombre: !!document.getElementById('qrs-nombre')?.checked,
+    precio: !!document.getElementById('qrs-precio')?.checked,
+    borde : !!document.getElementById('qrs-borde')?.checked,
+  };
+}
+
+function qrLabelHTML(p, t, o){
+  const T=TAMS_QR[t];
+  const nom=(p.nombre||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  return `<div class="lbl" style="width:${T.cw}mm;height:${T.ch}mm;border:${o.borde?'1px dashed #9aa7b5':'none'}">`+
+    `<img src="${qrUrl(p.id,T.px)}" style="width:${T.qr}mm;height:${T.qr}mm">`+
+    (o.nombre?`<div class="nm" style="font-size:${T.f1}pt">${nom}</div>`:'')+
+    (o.precio?`<div class="pr" style="font-size:${T.f2}pt">${$m(p.venta||0)}</div>`:'')+
+  `</div>`;
+}
+
+function construirPaginasQR(){
+  const o=qrsOpciones(), T=TAMS_QR[o.tam], cap=T.cols*T.rows;
+  const etqs=[];
+  inventario.filter(p=>qrSel.has(p.id)).forEach(p=>{
+    for(let i=0;i<o.copias;i++) etqs.push(qrLabelHTML(p,o.tam,o));
+  });
+  const pags=[];
+  for(let i=0;i<etqs.length;i+=cap) pags.push(etqs.slice(i,i+cap));
+  return { o, T, pags, total:etqs.length };
+}
+
+function renderQrsPreview(){
+  const res=document.getElementById('qrs-resumen'), prev=document.getElementById('qrs-prev');
+  if(!res||!prev) return;
+  const { T, pags, total }=construirPaginasQR();
+  if(total===0){
+    res.innerHTML='<span style="color:var(--red)">Seleccione al menos un producto</span>';
+    prev.innerHTML=''; return;
+  }
+  res.innerHTML=`📦 ${qrSel.size} producto(s) · 🧾 <b>${total}</b> etiqueta(s) · 📄 <b>${pags.length}</b> hoja(s) carta · ${T.cols}×${T.rows} por hoja · QR ${T.qr/10} cm`;
+  const p1=pags[0], filas=Math.ceil(p1.length/T.cols), hMm=filas*T.ch+(filas-1)*2;
+  prev.innerHTML=`
+    <div style="font-size:.72rem;color:var(--ink3);margin:2px 0 5px">Vista previa · página 1 (50 %):</div>
+    <div style="width:${204*0.5}mm;max-width:100%;margin:0 auto;height:${hMm*0.5}mm;overflow:hidden;border:1px solid var(--paper3);border-radius:6px">
+      <div style="transform:scale(.5);transform-origin:top left;width:204mm;display:grid;grid-template-columns:repeat(${T.cols},${T.cw}mm);gap:2mm;justify-content:center;padding-top:1mm">
+        ${p1.join('')}
+      </div>
+    </div>`;
+}
+
+window.imprimirQRMasivo = async () => {
+  const { T, pags, total }=construirPaginasQR();
+  if(total===0){ toast('Seleccione al menos un producto','er'); return; }
+  toast(`⏳ Preparando ${total} etiquetas en ${pags.length} hoja(s)…`,'wa');
+
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Códigos QR — Inventario</title><style>
+    @page{size:letter;margin:6mm}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,Helvetica,sans-serif;color:#0f1923}
+    .pg{page-break-after:always;display:grid;grid-template-columns:repeat(${T.cols},${T.cw}mm);gap:2mm;justify-content:center}
+    .pg:last-child{page-break-after:auto}
+    .lbl{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8mm;padding:1mm;text-align:center;border-radius:1.5mm;overflow:hidden}
+    .lbl img{display:block}
+    .nm{font-weight:700;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%;word-break:break-word}
+    .pr{font-weight:800;color:#d4521a;line-height:1}
+  </style></head><body>${pags.map(pg=>`<div class="pg">${pg.join('')}</div>`).join('')}</body></html>`;
+
+  const ifr=document.createElement('iframe');
+  ifr.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0';
+  document.body.appendChild(ifr);
+  const d=ifr.contentDocument;
+  d.open(); d.write(html); d.close();
+
+  // Esperar a que TODOS los QR (quickchart.io) terminen de cargar
+  const todosCargados = await new Promise(res=>{
+    const t0=Date.now();
+    const iv=setInterval(()=>{
+      const imgs=[...d.images];
+      if(imgs.length && imgs.every(i=>i.complete)){
+        clearInterval(iv); res(imgs.every(i=>i.naturalWidth>0));
+      } else if(Date.now()-t0>20000){
+        clearInterval(iv); res(imgs.some(i=>i.naturalWidth>0));
+      }
+    },150);
+  });
+
+  if(!todosCargados){
+    ifr.remove();
+    toast('No se pudieron descargar los códigos QR. Verifique su conexión a internet e intente de nuevo.','er');
+    return;
+  }
+
+  const limpiar=()=>{ try{ ifr.remove(); }catch(e){} };
+  try{
+    ifr.contentWindow.addEventListener('afterprint', limpiar);
+    ifr.contentWindow.focus();
+    ifr.contentWindow.print();
+    setTimeout(limpiar, 120000);
+  }catch(e){
+    limpiar();
+    toast('No se pudo abrir la impresión: '+e.message,'er');
+  }
+};
+
 // ─── Stock select para ajustes ──────────────────────────────────────
 function renderStockSelect(){
   const sel = document.getElementById('sk-prod');
@@ -2032,4 +2176,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Búsqueda en tiempo real inventario
   document.getElementById('p-buscar')?.addEventListener('input', renderProds);
   document.getElementById('v-buscar')?.addEventListener('input', renderProdList);
+
+  // QR masivo: búsqueda y recálculo de vista previa en vivo
+  document.getElementById('qrs-buscar')?.addEventListener('input', renderQrsLista);
+  ['qrs-tam','qrs-copias','qrs-nombre','qrs-precio','qrs-borde'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('change', renderQrsPreview);
+  });
 });

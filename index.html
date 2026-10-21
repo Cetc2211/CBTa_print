@@ -225,6 +225,11 @@ tbody tr:hover{background:var(--paper)}
 
 /* QR THUMB */
 .qr-th{width:50px;height:50px;border-radius:6px;border:1px solid var(--paper3);cursor:pointer}
+/* QR MASIVO */
+.qrs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:6px;max-height:215px;overflow-y:auto;border:1.5px solid var(--paper3);border-radius:var(--rs);padding:8px}
+.qrs-it{display:flex;align-items:center;gap:7px;padding:6px 8px;border:1.5px solid var(--paper3);border-radius:8px;cursor:pointer;font-size:.76rem;background:#fff;min-width:0}
+.qrs-it.sel{border-color:var(--accent);background:var(--grl)}
+.qrs-it input{accent-color:var(--accent);flex-shrink:0}
 
 /* STOCK BAR */
 .sbar{height:5px;background:var(--paper3);border-radius:99px;overflow:hidden;margin-top:3px}
@@ -479,8 +484,9 @@ tbody tr:hover{background:var(--paper)}
   <div class="psub">Gestione productos. El QR se genera automáticamente para escaneo en caja.</div>
   <div class="card">
     <div class="cbar">
-      <div class="sb" style="width:210px"><input type="text" id="p-buscar" placeholder="Buscar…" oninput="renderProds()"></div>
+      <div class="sb" style="width:210px"><input type="text" id="p-buscar" placeholder="Buscar…"></div>
       <div class="sp"></div>
+      <button class="btn bs" onclick="abrirQRMasivo()">🏷️ Imprimir QRs</button>
       <button class="btn bp" onclick="openProdModal()">➕ Nuevo producto</button>
     </div>
     <div class="table-scroll">
@@ -793,6 +799,54 @@ tbody tr:hover{background:var(--paper)}
       <div id="qr-img-wrap" style="margin:0 auto 14px;display:inline-block"></div>
       <p style="font-size:.82rem;color:var(--ink3)" id="qr-info"></p>
       <div style="margin-top:14px"><button class="btn bs" onclick="printQR()">🖨️ Imprimir etiqueta</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Imprimir QRs Masivo -->
+
+<div class="ov" id="ov-qrs">
+  <div class="modal" style="max-width:700px">
+    <div class="mh"><h2>🏷️ Imprimir códigos QR</h2><button class="xbtn" onclick="closeModal('ov-qrs')">✕</button></div>
+    <div class="mb">
+      <p style="font-size:.82rem;color:var(--ink3);margin-bottom:12px">
+        Seleccione los productos y la app acomodará las etiquetas automáticamente en hojas tamaño carta, listas para recortar y pegar en productos o mostradores.
+      </p>
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
+        <div class="sb" style="flex:1;min-width:150px"><input type="text" id="qrs-buscar" placeholder="Buscar producto…"></div>
+        <button class="btn bs bsm" onclick="qrsTodos(true)">Todos</button>
+        <button class="btn bs bsm" onclick="qrsTodos(false)">Ninguno</button>
+      </div>
+      <div class="qrs-grid" id="qrs-lista"></div>
+      <div style="display:flex;gap:8px;margin:12px 0 0;flex-wrap:wrap">
+        <div class="fld" style="flex:1;min-width:160px"><label>Tamaño de etiqueta</label>
+          <select id="qrs-tam">
+            <option value="chica">Chica — QR 2.0 cm (49 por hoja)</option>
+            <option value="mediana" selected>Mediana — QR 2.7 cm (25 por hoja)</option>
+            <option value="grande">Grande — QR 3.8 cm (16 por hoja)</option>
+          </select>
+        </div>
+        <div class="fld" style="flex:1;min-width:160px"><label>Etiquetas por producto</label>
+          <select id="qrs-copias">
+            <option value="1" selected>1 copia</option>
+            <option value="2">2 copias</option>
+            <option value="3">3 copias</option>
+            <option value="4">4 copias</option>
+            <option value="6">6 copias</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;font-size:.8rem">
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="qrs-nombre" checked style="accent-color:var(--accent)"> Mostrar nombre</label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="qrs-precio" checked style="accent-color:var(--accent)"> Mostrar precio</label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="qrs-borde" checked style="accent-color:var(--accent)"> Línea de recorte</label>
+      </div>
+      <div id="qrs-resumen" style="margin-top:12px;font-size:.84rem;background:var(--grl);border-radius:var(--rs);padding:9px 11px"></div>
+      <div id="qrs-prev" style="margin-top:8px"></div>
+    </div>
+    <div class="mf">
+      <button class="btn bs" onclick="closeModal('ov-qrs')">Cancelar</button>
+      <button class="btn bp" onclick="imprimirQRMasivo()">🖨️ Imprimir hojas</button>
     </div>
   </div>
 </div>

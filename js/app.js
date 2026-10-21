@@ -1141,7 +1141,89 @@ window.imprimirQRMasivo = async () => {
   if(total===0){ toast('Seleccione al menos un producto','er'); return; }
   toast(`⏳ Preparando ${total} etiquetas en ${pags.length} hoja(s)…`,'wa');
 
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Códigos QR — Inventario</title><style>
+  // Mismo patrón validado de imprimirPDFCola: iframe con src=blob + onload.
+  // (document.write + polling hace que Chrome a veces ignore print() en silencio)
+  const html=construirHTMLQR(T, pags, false);
+  const url=URL.createObjectURL(new Blob([html], {type:'text/html'}));
+
+  const ifr=document.createElement('iframe');
+  ifr.setAttribute('aria-hidden','true');
+  ifr.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0.01;border:0';
+
+  // 1) Cargar el documento (con tope de seguridad de 10 s)
+  await new Promise(res=>{
+    ifr.onload=res;
+    setTimeout(res,10000);
+    document.body.appendChild(ifr);
+    ifr.src=url;
+  });
+
+  // 2) Esperar a que los QR (quickchart.io) terminen de cargar
+  const d=ifr.contentDocument;
+  const cargados = await new Promise(res=>{
+    const t0=Date.now();
+    const iv=setInterval(()=>{
+      const imgs=[...d.images];
+      if(imgs.length && imgs.every(i=>i.complete)){
+        clearInterval(iv); res(imgs.filter(i=>i.naturalWidth>0).length);
+      } else if(Date.now()-t0>25000){
+        clearInterval(iv); res(imgs.filter(i=>i.naturalWidth>0).length);
+      }
+    },120);
+  });
+
+  if(cargados===0){
+    ifr.remove(); URL.revokeObjectURL(url);
+    toast('No se pudieron descargar los códigos QR. Verifique su conexión a internet e intente de nuevo.','er');
+    return;
+  }
+  if(cargados<total) toast(`⚠️ ${total-cargados} QR no cargaron; se imprimen los demás`,'wa');
+  await new Promise(r=>setTimeout(r,250)); // asentar el render antes de imprimir
+
+  // 3) Imprimir y VERIFICAR que el diálogo realmente arrancó (beforeprint)
+  let iniciado=false;
+  try{
+    ifr.contentWindow.addEventListener('beforeprint', ()=>{ iniciado=true; });
+    ifr.contentWindow.focus();
+    ifr.contentWindow.print();
+    if(!iniciado) await new Promise(r=>setTimeout(r,1200)); // tolerancia asíncrona
+  }catch(e){
+    console.warn('[imprimirQRMasivo] print() falló:', e);
+  }
+
+  if(!iniciado){
+    // Respaldo: pestaña visible con botón de impresión (nunca dejar al usuario sin nada)
+    ifr.remove(); URL.revokeObjectURL(url);
+    abrirRespaldoQR(T, pags);
+    return;
+  }
+
+  const limpiar=()=>{ try{ ifr.remove(); URL.revokeObjectURL(url); }catch(e){} };
+  try{ ifr.contentWindow.addEventListener('afterprint', limpiar); }catch(e){}
+  setTimeout(limpiar, 120000);
+};
+
+// Respaldo visible: abre las etiquetas en una pestaña con botón de impresión
+function abrirRespaldoQR(T, pags){
+  const html=construirHTMLQR(T, pags, true);
+  const w=window.open('', '_blank');
+  if(!w){
+    toast('No se pudo abrir la vista de impresión. Permita ventanas emergentes (pop-ups) para este sitio e intente de nuevo.','er');
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
+  toast('Se abrió una pestaña con las etiquetas: si el diálogo no aparece, pulse el botón 🖨️ Imprimir.','wa');
+}
+
+function construirHTMLQR(T, pags, conBanner){
+  const banner = conBanner ? `
+  <div class="bk-bar" style="position:sticky;top:0;z-index:9;background:#0f1923;color:#fff;padding:10px 14px;font-family:Arial,Helvetica,sans-serif;text-align:center;font-size:14px">
+    Si el diálogo de impresión no se abrió automáticamente:
+    <button onclick="window.print()" style="margin-left:8px;padding:8px 18px;background:#d4521a;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:14px">🖨️ Imprimir ahora</button>
+    <span style="opacity:.75;margin-left:8px">(o Ctrl+P / Cmd+P)</span>
+  </div>` : '';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Códigos QR — Inventario</title><style>
     @page{size:letter;margin:6mm}
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,Helvetica,sans-serif;color:#0f1923}
@@ -1151,44 +1233,10 @@ window.imprimirQRMasivo = async () => {
     .lbl img{display:block}
     .nm{font-weight:700;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%;word-break:break-word}
     .pr{font-weight:800;color:#d4521a;line-height:1}
-  </style></head><body>${pags.map(pg=>`<div class="pg">${pg.join('')}</div>`).join('')}</body></html>`;
-
-  const ifr=document.createElement('iframe');
-  ifr.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0';
-  document.body.appendChild(ifr);
-  const d=ifr.contentDocument;
-  d.open(); d.write(html); d.close();
-
-  // Esperar a que TODOS los QR (quickchart.io) terminen de cargar
-  const todosCargados = await new Promise(res=>{
-    const t0=Date.now();
-    const iv=setInterval(()=>{
-      const imgs=[...d.images];
-      if(imgs.length && imgs.every(i=>i.complete)){
-        clearInterval(iv); res(imgs.every(i=>i.naturalWidth>0));
-      } else if(Date.now()-t0>20000){
-        clearInterval(iv); res(imgs.some(i=>i.naturalWidth>0));
-      }
-    },150);
-  });
-
-  if(!todosCargados){
-    ifr.remove();
-    toast('No se pudieron descargar los códigos QR. Verifique su conexión a internet e intente de nuevo.','er');
-    return;
-  }
-
-  const limpiar=()=>{ try{ ifr.remove(); }catch(e){} };
-  try{
-    ifr.contentWindow.addEventListener('afterprint', limpiar);
-    ifr.contentWindow.focus();
-    ifr.contentWindow.print();
-    setTimeout(limpiar, 120000);
-  }catch(e){
-    limpiar();
-    toast('No se pudo abrir la impresión: '+e.message,'er');
-  }
-};
+    @media print{.bk-bar{display:none}}
+  </style></head><body>${conBanner?'<script>try{window.onload=function(){setTimeout(function(){try{window.print()}catch(e){}},400)}}catch(e){}<\/script>':''}${banner}
+  <div style="padding-top:${conBanner?'4':'0'}mm">${pags.map(pg=>`<div class="pg">${pg.join('')}</div>`).join('')}</div></body></html>`;
+}
 
 // ─── Stock select para ajustes ──────────────────────────────────────
 function renderStockSelect(){
